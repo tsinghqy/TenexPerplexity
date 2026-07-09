@@ -17,16 +17,24 @@ export function createErrorEvent(errorMessage: string): string {
   return createSseDataLine({ type: STREAM_EVENT.ERROR, error: errorMessage })
 }
 
-export function createCompleteEvent(
-  content: string,
-  modelId: string,
+export function createCompleteEvent(params: {
+  content: string
+  modelId: string
   citations?: Citation[]
-): string {
+  chatId?: string
+  title?: string | null
+  userMessageId?: string
+  assistantMessageId?: string
+}): string {
   return createSseDataLine({
     type: STREAM_EVENT.COMPLETE,
-    content,
-    modelId,
-    citations: citations ?? [],
+    content: params.content,
+    modelId: params.modelId,
+    citations: params.citations ?? [],
+    chatId: params.chatId,
+    title: params.title ?? null,
+    userMessageId: params.userMessageId,
+    assistantMessageId: params.assistantMessageId,
   })
 }
 

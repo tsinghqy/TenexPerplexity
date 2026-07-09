@@ -51,7 +51,23 @@ cp .env.example .env.local
    - Site URL: `http://localhost:3000`
    - Redirect URLs: `http://localhost:3000/auth/callback`
 4. For faster local testing: Authentication → Providers → Email → disable **Confirm email**
-5. Run SQL migrations from `supabase/migrations/` in order (added in P4+)
+5. Run SQL migrations from `supabase/migrations/` in order (P4+)
+
+### P4 persistence migrations
+
+In the Supabase dashboard → **SQL Editor**, run either:
+
+- `supabase/migrations/p4_combined.sql` once, or
+- files `001` → `005` in order
+
+This creates `chats`, `nodes`, `node_links`, pgvector, and RLS policies.
+
+### P4 persistence smoke test
+
+1. Sign in → send a message → chat appears in the left sidebar with a title
+2. Refresh the page → sidebar still lists the chat
+3. Click the chat → messages reload
+4. **New chat** → send again → second conversation is separate
 
 ### P1 auth smoke test
 

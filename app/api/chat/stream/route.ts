@@ -9,6 +9,14 @@ import {
   createJsonErrorResponse,
 } from '@/lib/chat/sse'
 import { CHAT_ERROR_MESSAGE, DEFAULT_CHAT_SYSTEM_PROMPT } from '@/lib/chat/constants'
+import {
+  createChat,
+  insertAssistantMessage,
+  insertUserMessage,
+  persistTitleForNewChat,
+  resolveParentIdForNewUserMessage,
+  verifyChatOwnership,
+} from '@/lib/chat/persist'
 import { getDefaultModelId, isValidModelId } from '@/lib/llm/models'
 import { llmProviderManager } from '@/lib/llm/provider-manager'
 import type { Citation } from '@/lib/llm/citations'
@@ -24,10 +32,10 @@ async function authenticateRequestUser() {
   } = await supabase.auth.getUser()
 
   if (error || !user) {
-    return null
+    return { supabase, user: null }
   }
 
-  return user
+  return { supabase, user }
 }
 
 function resolveModelId(requestedModelId?: string): {
@@ -50,7 +58,7 @@ function buildConversationMessages(
 }
 
 export async function POST(request: Request) {
-  const user = await authenticateRequestUser()
+  const { supabase, user } = await authenticateRequestUser()
   if (!user) {
     return createJsonErrorResponse(CHAT_ERROR_MESSAGE.UNAUTHORIZED, 401)
   }
@@ -78,9 +86,45 @@ export async function POST(request: Request) {
 
   const modelId = modelResolution.modelId
   const useWebSearch = parsedBody.data.useWebSearch === true
+  const userMessageContent = parsedBody.data.message
+  let chatId = parsedBody.data.chatId
+  let isNewChat = false
+
+  if (chatId) {
+    const ownsChat = await verifyChatOwnership(supabase, chatId, user.id)
+    if (!ownsChat) {
+      return createJsonErrorResponse('Chat not found', 404)
+    }
+  } else {
+    const createdChat = await createChat(supabase, user.id)
+    if (!createdChat) {
+      return createJsonErrorResponse('Failed to create chat', 500)
+    }
+    chatId = createdChat.id
+    isNewChat = true
+  }
+
+  const parentId = await resolveParentIdForNewUserMessage(
+    supabase,
+    chatId,
+    user.id,
+    parsedBody.data.parentId
+  )
+
+  const userNode = await insertUserMessage(supabase, {
+    chatId,
+    userId: user.id,
+    content: userMessageContent,
+    parentId,
+  })
+
+  if (!userNode) {
+    return createJsonErrorResponse('Failed to save user message', 500)
+  }
+
   const conversationMessages = buildConversationMessages(
     parsedBody.data.history,
-    parsedBody.data.message
+    userMessageContent
   )
 
   const encoder = new TextEncoder()
@@ -88,8 +132,13 @@ export async function POST(request: Request) {
     async start(controller) {
       const enqueue = (text: string) => controller.enqueue(encoder.encode(text))
       let streamedCitations: Citation[] = []
+      let persistedTitle: string | null = null
 
       try {
+        if (isNewChat) {
+          persistedTitle = await persistTitleForNewChat(supabase, chatId!, userMessageContent)
+        }
+
         const result = await llmProviderManager.streamChat({
           modelId,
           messages: conversationMessages,
@@ -106,7 +155,24 @@ export async function POST(request: Request) {
         })
 
         const citations = result.citations?.length ? result.citations : streamedCitations
-        enqueue(createCompleteEvent(result.content, modelId, citations))
+        const assistantNode = await insertAssistantMessage(supabase, {
+          chatId: chatId!,
+          userId: user.id,
+          content: result.content,
+          parentId: userNode.id,
+        })
+
+        enqueue(
+          createCompleteEvent({
+            content: result.content,
+            modelId,
+            citations,
+            chatId,
+            title: persistedTitle,
+            userMessageId: userNode.id,
+            assistantMessageId: assistantNode?.id,
+          })
+        )
         enqueue(createDoneEvent())
         controller.close()
       } catch (error) {

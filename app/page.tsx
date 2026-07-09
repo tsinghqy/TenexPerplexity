@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { ErrorMessage } from '@/components/ui/error-message'
-import { ChatComposer, ChatMessageList } from '@/components/chat/ChatPanel'
+import { ChatComposer, ChatMessageList, ChatSidebar } from '@/components/chat/ChatPanel'
 import { useAuth } from '@/context/AuthContext'
 import { useStreamingChat } from '@/lib/hooks/useStreamingChat'
 import { getChatModels } from '@/lib/llm/models'
@@ -12,6 +12,10 @@ export default function HomePage() {
   const { user, loading: isAuthLoading, signOut, configError } = useAuth()
   const {
     messages,
+    chats,
+    activeChatId,
+    isLoadingChats,
+    isLoadingMessages,
     isStreaming,
     errorMessage,
     selectedModelId,
@@ -20,7 +24,8 @@ export default function HomePage() {
     setUseWebSearch,
     sendMessage,
     stopStreaming,
-    clearMessages,
+    selectChat,
+    startNewChat,
   } = useStreamingChat()
   const [draftMessage, setDraftMessage] = useState('')
   const availableModels = getChatModels()
@@ -53,7 +58,7 @@ export default function HomePage() {
     <main className="flex h-screen flex-col bg-base-100">
       <header className="flex items-center justify-between gap-3 border-b border-white/10 px-4 py-3">
         <div>
-          <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Phase 3</p>
+          <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Phase 4</p>
           <h1 className="text-lg font-semibold">Tenexity</h1>
         </div>
         <div className="flex items-center gap-2">
@@ -70,9 +75,6 @@ export default function HomePage() {
               </option>
             ))}
           </select>
-          <Button type="button" variant="ghost" onClick={clearMessages} disabled={isStreaming}>
-            Clear
-          </Button>
           <Button
             type="button"
             variant="outline"
@@ -86,25 +88,40 @@ export default function HomePage() {
         </div>
       </header>
 
-      <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col overflow-hidden">
-        <p className="px-4 pt-3 text-xs text-muted-foreground">{user?.email}</p>
-        {errorMessage ? (
-          <div className="px-4 pt-3">
-            <ErrorMessage message={errorMessage} />
-          </div>
-        ) : null}
-        <ChatMessageList messages={messages} />
-      </div>
+      <div className="flex min-h-0 flex-1">
+        <ChatSidebar
+          chats={chats}
+          activeChatId={activeChatId}
+          isLoading={isLoadingChats}
+          disabled={isStreaming}
+          onSelectChat={(chatId) => {
+            void selectChat(chatId)
+          }}
+          onNewChat={startNewChat}
+        />
 
-      <ChatComposer
-        value={draftMessage}
-        isStreaming={isStreaming}
-        useWebSearch={useWebSearch}
-        onChange={setDraftMessage}
-        onToggleWebSearch={setUseWebSearch}
-        onSubmit={handleSubmit}
-        onStop={stopStreaming}
-      />
+        <div className="flex min-w-0 flex-1 flex-col">
+          <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col overflow-hidden">
+            <p className="px-4 pt-3 text-xs text-muted-foreground">{user?.email}</p>
+            {errorMessage ? (
+              <div className="px-4 pt-3">
+                <ErrorMessage message={errorMessage} />
+              </div>
+            ) : null}
+            <ChatMessageList messages={messages} isLoading={isLoadingMessages} />
+          </div>
+
+          <ChatComposer
+            value={draftMessage}
+            isStreaming={isStreaming}
+            useWebSearch={useWebSearch}
+            onChange={setDraftMessage}
+            onToggleWebSearch={setUseWebSearch}
+            onSubmit={handleSubmit}
+            onStop={stopStreaming}
+          />
+        </div>
+      </div>
     </main>
   )
 }

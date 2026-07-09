@@ -39,11 +39,20 @@ cp .env.example .env.local
 ## Step 3: Supabase (P1+)
 
 1. Create a project at [supabase.com](https://supabase.com)
-2. Settings → API: copy Project URL, anon key, service_role key
-3. Authentication → URL Configuration: add
-   - `http://localhost:3000/auth/callback`
-   - `https://<your-domain>/auth/callback` (production)
-4. Run SQL migrations from `supabase/migrations/` in order (added in P4+)
+2. Settings → API: copy Project URL, anon key, service_role key into `.env.local`
+3. Authentication → URL Configuration:
+   - Site URL: `http://localhost:3000`
+   - Redirect URLs: `http://localhost:3000/auth/callback`
+4. For faster local testing: Authentication → Providers → Email → disable **Confirm email**
+5. Run SQL migrations from `supabase/migrations/` in order (added in P4+)
+
+### P1 auth smoke test
+
+1. `npm run dev` → open http://localhost:3000 (should redirect to `/auth/signin`)
+2. Sign up with email/password
+3. Sign in → land on protected home with your email
+4. Sign out → back to sign-in
+5. Visit `/` while signed out → redirected to sign-in with `?redirect=/`
 
 ## Step 4: Run locally
 

@@ -31,6 +31,7 @@ export interface Database {
           position_y: number | null
           research_run_id: string | null
           confidence: number | null
+          summary: string | null
           created_at: string
           updated_at: string
         }
@@ -44,6 +45,7 @@ export interface Database {
           position_y?: number | null
           research_run_id?: string | null
           confidence?: number | null
+          summary?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -57,6 +59,7 @@ export interface Database {
           position_y?: number | null
           research_run_id?: string | null
           confidence?: number | null
+          summary?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -69,7 +72,6 @@ export interface Database {
           root_chat_id: string | null
           question: string
           status: ResearchRunStatus
-          winning_chat_id: string | null
           overall_confidence: number | null
           created_at: string
           updated_at: string
@@ -80,7 +82,6 @@ export interface Database {
           root_chat_id?: string | null
           question: string
           status?: ResearchRunStatus
-          winning_chat_id?: string | null
           overall_confidence?: number | null
           created_at?: string
           updated_at?: string
@@ -91,7 +92,6 @@ export interface Database {
           root_chat_id?: string | null
           question?: string
           status?: ResearchRunStatus
-          winning_chat_id?: string | null
           overall_confidence?: number | null
           created_at?: string
           updated_at?: string

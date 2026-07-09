@@ -48,18 +48,5 @@ export async function GET(request: Request) {
 
   const chats = await listChatsForUser(supabase, user.id)
 
-  // Mark research-run winners so Explore/Research views can crown them.
-  const { data: winnerRows } = await supabase
-    .from('research_runs')
-    .select('winning_chat_id')
-    .eq('user_id', user.id)
-    .not('winning_chat_id', 'is', null)
-
-  const winnerIds = new Set((winnerRows ?? []).map((row) => row.winning_chat_id))
-  const chatsWithWinners = chats.map((chat) => ({
-    ...chat,
-    is_winner: winnerIds.has(chat.id),
-  }))
-
-  return NextResponse.json({ success: true, chats: chatsWithWinners })
+  return NextResponse.json({ success: true, chats })
 }

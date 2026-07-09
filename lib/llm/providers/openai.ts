@@ -64,6 +64,9 @@ function logWebSearch(message: string, detail?: unknown) {
   console.warn(message, detail)
 }
 
+/** Hard cap per web-search Responses call; typical answers return in ~10s. */
+const WEB_SEARCH_RESPONSE_TIMEOUT_MS = 60_000
+
 function isUnsupportedWebSearchToolError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error)
   return (
@@ -118,26 +121,38 @@ export class OpenAIProvider implements LLMProvider {
     maxTokens: number
     tools: ReturnType<typeof buildOpenAIWebSearchTools>
     forceTool: boolean
+    signal?: AbortSignal
   }): Promise<{ output: unknown }> {
     // SDK typings lag the live Responses API (`web_search` + sources include).
     // Use a loose client call so Vercel typecheck does not fail on include/tools unions.
     const client = this.getClientForWebSearch() as unknown as {
       responses: {
-        create: (body: Record<string, unknown>) => Promise<{ output?: unknown }>
+        create: (
+          body: Record<string, unknown>,
+          options?: { signal?: AbortSignal; timeout?: number }
+        ) => Promise<{ output?: unknown }>
       }
     }
 
-    const response = await client.responses.create({
-      model: params.modelId,
-      input: params.inputText,
-      tools: params.tools,
-      tool_choice: params.forceTool ? 'required' : 'auto',
-      include: ['web_search_call.action.sources'],
-      text: { format: { type: 'text' } },
-      max_output_tokens: params.maxTokens,
-      store: false,
-      stream: false,
-    })
+    const response = await client.responses.create(
+      {
+        model: params.modelId,
+        input: params.inputText,
+        tools: params.tools,
+        tool_choice: params.forceTool ? 'required' : 'auto',
+        include: ['web_search_call.action.sources'],
+        text: { format: { type: 'text' } },
+        max_output_tokens: params.maxTokens,
+        store: false,
+        stream: false,
+      },
+      {
+        // The Responses call is non-streaming; without a timeout a stalled
+        // OpenAI request leaves research branches stuck on "answering" forever.
+        signal: params.signal,
+        timeout: WEB_SEARCH_RESPONSE_TIMEOUT_MS,
+      }
+    )
 
     return { output: response.output ?? [] }
   }
@@ -179,6 +194,7 @@ export class OpenAIProvider implements LLMProvider {
         maxTokens,
         tools,
         forceTool,
+        signal: options.signal,
       })
       const content = extractResponseTextFromOutput(response.output) || 'No response generated'
       const citations = this.citationsFromResponse(response.output, content)

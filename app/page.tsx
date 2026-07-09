@@ -5,8 +5,9 @@ import { Button } from '@/components/ui/button'
 import { ErrorMessage } from '@/components/ui/error-message'
 import { ChatComposer, ChatMessageList, ChatSidebar } from '@/components/chat/ChatPanel'
 import { ExploreCanvas, type ExploreFocusRequest } from '@/components/graph/ExploreCanvas'
-import { ResearchPanel } from '@/components/research/ResearchPanel'
+import { ResearchPanel, ResearchSidebar } from '@/components/research/ResearchPanel'
 import { useAuth } from '@/context/AuthContext'
+import { synthesizeResearch } from '@/lib/api/research'
 import { verifyNode } from '@/lib/api/verify'
 import { useResearchRun } from '@/lib/hooks/useResearchRun'
 import { useStreamingChat } from '@/lib/hooks/useStreamingChat'
@@ -58,6 +59,10 @@ export default function HomePage() {
   const {
     run: researchRun,
     isRunning: isResearchRunning,
+    runs: researchRuns,
+    isLoadingRuns: isLoadingResearchRuns,
+    isLoadingRun: isLoadingResearchRun,
+    selectRun: selectResearchRun,
     startResearch,
     cancelResearch,
     retryBranch,
@@ -71,6 +76,19 @@ export default function HomePage() {
     verifyBranch: async (assistantNodeId) => {
       const result = await verifyNode(assistantNodeId)
       return result.success ? (result.confidence ?? null) : null
+    },
+    // Once all branches finish: combine them into the verified final synthesis.
+    synthesizeRun: async (runId) => {
+      const result = await synthesizeResearch(runId)
+      if (!result.success) {
+        return null
+      }
+      return {
+        overallConfidence: result.overallConfidence ?? null,
+        synthesis: result.synthesis ?? null,
+        synthesisClaims: result.synthesisClaims ?? [],
+        quickSummary: result.quickSummary ?? null,
+      }
     },
   })
 
@@ -118,6 +136,10 @@ export default function HomePage() {
 
   const activeChatTitle =
     chats.find((chat) => chat.id === activeChatId)?.title || 'Conversation'
+
+  // Research runs own their chats (root + branches); they live in the research
+  // tab's history panel, not the chat sidebar. Explore still shows everything.
+  const conversationChats = chats.filter((chat) => !chat.research_run_id)
 
   return (
     <main className="flex h-screen flex-col bg-base-100 text-base-content">
@@ -185,7 +207,7 @@ export default function HomePage() {
         {workspaceView === 'chat' ? (
           <>
             <ChatSidebar
-              chats={chats}
+              chats={conversationChats}
               activeChatId={activeChatId}
               isLoading={isLoadingChats}
               disabled={isStreaming}
@@ -248,23 +270,36 @@ export default function HomePage() {
             </div>
           </>
         ) : workspaceView === 'research' ? (
-          <ResearchPanel
-            run={researchRun}
-            isRunning={isResearchRunning}
-            onStart={(question) => {
-              void startResearch(question)
-            }}
-            onCancel={() => {
-              void cancelResearch()
-            }}
-            onRetryBranch={(chatId) => {
-              void retryBranch(chatId)
-            }}
-            onReset={resetResearch}
-            onOpenChat={(chatId) => {
-              void openResearchChat(chatId)
-            }}
-          />
+          <>
+            <ResearchSidebar
+              runs={researchRuns}
+              activeRunId={researchRun?.runId || null}
+              isLoading={isLoadingResearchRuns}
+              disabled={isResearchRunning}
+              onSelectRun={(runId) => {
+                void selectResearchRun(runId)
+              }}
+              onNewResearch={resetResearch}
+            />
+            <ResearchPanel
+              run={researchRun}
+              isRunning={isResearchRunning}
+              isLoadingRun={isLoadingResearchRun}
+              onStart={(question) => {
+                void startResearch(question)
+              }}
+              onCancel={() => {
+                void cancelResearch()
+              }}
+              onRetryBranch={(chatId) => {
+                void retryBranch(chatId)
+              }}
+              onReset={resetResearch}
+              onOpenChat={(chatId) => {
+                void openResearchChat(chatId)
+              }}
+            />
+          </>
         ) : (
           <div className="relative flex min-w-0 flex-1">
             <div className="min-w-0 flex-1">

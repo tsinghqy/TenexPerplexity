@@ -32,7 +32,10 @@ export const RESEARCH_MAX_DEPTH = 3
 
 export const RESEARCH_FOLLOWUPS_HARD_CAP = 3
 
-/** Server-side: follow-up branches when deepening the winning path. */
+/** Marker prefix for branch synthesis messages (excluded from judging). */
+export const BRANCH_SYNTHESIS_PREFIX = '**Branch synthesis'
+
+/** Server-side: follow-up branches when deepening the strongest path. */
 export function resolveFollowUpsPerDeepen(): number {
   const parsed = Number.parseInt(process.env.RESEARCH_FOLLOWUPS || '', 10)
   if (!Number.isFinite(parsed)) {

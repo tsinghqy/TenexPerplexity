@@ -10,6 +10,8 @@ import {
   Position,
   ReactFlow,
   applyNodeChanges,
+  getNodesBounds,
+  getViewportForBounds,
   type Edge,
   type Node,
   type NodeChange,
@@ -19,7 +21,11 @@ import {
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import { updateChatPosition, type ChatSummary, type GraphEdgeSummary } from '@/lib/api/chat'
-import { GRAPH_NODE_WIDTH, collectTreeChatIds, layoutChats } from '@/lib/graph/layout'
+import {
+  GRAPH_NODE_WIDTH,
+  collectTreeChatIds,
+  layoutChats,
+} from '@/lib/graph/layout'
 import { cn } from '@/lib/utils'
 
 /** Request to zoom the canvas onto one chat's fork tree. */
@@ -41,20 +47,34 @@ interface ExploreCanvasProps {
 function ChatGraphNode({ data, selected }: NodeProps) {
   const label = String(data.label || 'Untitled chat')
   const isBranch = Boolean(data.isBranch)
-  const isWinner = Boolean(data.isWinner)
   const preview = typeof data.preview === 'string' ? data.preview : ''
   const confidence = typeof data.confidence === 'number' ? data.confidence : null
+  const summary = typeof data.summary === 'string' ? data.summary : ''
 
   return (
     <div
       className={cn(
-        'rounded-2xl border bg-[var(--surface-elevated)] px-3.5 py-3 text-left shadow-md transition',
-        'hover:shadow-lg',
-        selected ? 'border-primary ring-4 ring-primary/20' : 'border-white/10',
-        isWinner && 'border-warning/70 ring-4 ring-warning/25'
+        'group/card relative rounded-2xl border px-3.5 py-3 text-left shadow-md transition',
+        'hover:shadow-lg bg-[var(--surface-elevated)]',
+        selected ? 'border-primary ring-4 ring-primary/20' : 'border-white/10'
       )}
       style={{ width: GRAPH_NODE_WIDTH }}
     >
+      {summary ? (
+        <div className="pointer-events-none absolute bottom-full left-1/2 z-30 mb-2 hidden w-80 -translate-x-1/2 whitespace-normal rounded-xl border border-white/15 bg-base-300 p-3 text-xs leading-relaxed text-base-content shadow-xl shadow-black/40 group-hover/card:block">
+          <span className="mb-1 flex items-center gap-2">
+            <span className="font-semibold text-success">
+              {isBranch ? 'Branch synthesis' : 'Conclusion'}
+            </span>
+            {confidence !== null ? (
+              <span className="font-semibold text-muted-foreground">
+                {Math.round(confidence)}% grounded
+              </span>
+            ) : null}
+          </span>
+          {summary}
+        </div>
+      ) : null}
       <Handle
         type="target"
         position={Position.Top}
@@ -71,11 +91,6 @@ function ChatGraphNode({ data, selected }: NodeProps) {
         >
           {isBranch ? 'Branch' : 'Chat'}
         </span>
-        {isWinner ? (
-          <span className="inline-flex rounded-full bg-warning/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-warning">
-            👑 Winner
-          </span>
-        ) : null}
         {confidence !== null ? (
           <span
             className={cn(
@@ -111,6 +126,11 @@ function ChatGraphNode({ data, selected }: NodeProps) {
 
 const nodeTypes = { chatGraphNode: ChatGraphNode }
 
+/** Width the open chat panel occupies on the right (matches page.tsx w-[min(420px,92vw)] + inset). */
+const OPEN_PANEL_WIDTH = 420 + 24
+/** Zoom adjustment on focus; 1 = exact fit of the tree in the visible area. */
+const FOCUS_ZOOM_FACTOR = 1
+
 export function ExploreCanvas({
   chats,
   edges,
@@ -126,28 +146,60 @@ export function ExploreCanvas({
   const layout = useMemo(() => layoutChats(chats, edges), [chats, edges])
   const saveTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
   const persistedInitialIds = useRef<Set<string>>(new Set())
-  const flowInstanceRef = useRef<ReactFlowInstance | null>(null)
   const handledFocusTokenRef = useRef<number | null>(null)
+  // Instance lives in state (not a ref) so the focus effect re-runs when the
+  // canvas finishes mounting — otherwise focusing right after a view switch
+  // races onInit and silently does nothing.
+  const [flowInstance, setFlowInstance] = useState<ReactFlowInstance | null>(null)
   const [nodes, setNodes] = useState<Node[]>([])
+  const wrapperRef = useRef<HTMLDivElement | null>(null)
 
   // Zoom onto the requested chat's whole fork tree once its node exists.
+  // The viewport is computed manually (not fitView) so the tree centers in the
+  // area LEFT of the open chat panel instead of hiding behind it, slightly
+  // zoomed out so the whole card stays visible.
   useEffect(() => {
     if (!focusRequest || handledFocusTokenRef.current === focusRequest.token) {
       return
     }
-    const instance = flowInstanceRef.current
-    if (!instance || !nodes.some((node) => node.id === focusRequest.chatId)) {
+    if (!flowInstance || !nodes.some((node) => node.id === focusRequest.chatId)) {
       return
     }
 
     handledFocusTokenRef.current = focusRequest.token
     const treeIds = collectTreeChatIds(focusRequest.chatId, edges)
-    void instance.fitView({
-      nodes: [...treeIds].map((id) => ({ id })),
-      padding: panelOpen ? 0.35 : 0.25,
-      duration: 500,
+    // Let the mount-time fitView settle first, then take over the viewport.
+    const frame = requestAnimationFrame(() => {
+      const wrapper = wrapperRef.current
+      const treeNodes = nodes.filter((node) => treeIds.has(node.id))
+      if (!wrapper || treeNodes.length === 0) {
+        return
+      }
+
+      const canvasWidth = wrapper.clientWidth
+      const canvasHeight = wrapper.clientHeight
+      const visibleWidth = panelOpen
+        ? Math.max(canvasWidth - OPEN_PANEL_WIDTH, canvasWidth * 0.35)
+        : canvasWidth
+
+      const bounds = getNodesBounds(treeNodes)
+      const fitted = getViewportForBounds(bounds, visibleWidth, canvasHeight, 0.4, 1.6, 0.12)
+      const zoom = Math.max(fitted.zoom * FOCUS_ZOOM_FACTOR, 0.4)
+
+      // Re-center the tree in the visible (left) region at the adjusted zoom.
+      const centerX = bounds.x + bounds.width / 2
+      const centerY = bounds.y + bounds.height / 2
+      void flowInstance.setViewport(
+        {
+          x: visibleWidth / 2 - centerX * zoom,
+          y: canvasHeight / 2 - centerY * zoom,
+          zoom,
+        },
+        { duration: 500 }
+      )
     })
-  }, [edges, focusRequest, nodes, panelOpen])
+    return () => cancelAnimationFrame(frame)
+  }, [edges, flowInstance, focusRequest, nodes, panelOpen])
 
   useEffect(() => {
     const timers = saveTimers.current
@@ -206,8 +258,8 @@ export function ExploreCanvas({
           data: {
             label: chat.title?.trim() || 'Untitled chat',
             isBranch: branchedChatIds.has(chat.id),
-            isWinner: chat.is_winner === true,
             confidence: typeof chat.confidence === 'number' ? chat.confidence : null,
+            summary: typeof chat.summary === 'string' ? chat.summary : '',
             preview: branchedChatIds.has(chat.id)
               ? 'Forked research path'
               : 'Drag to rearrange · double-click to chat',
@@ -271,14 +323,12 @@ export function ExploreCanvas({
   }
 
   return (
-    <div className="h-full w-full bg-[var(--canvas-bg)]">
+    <div ref={wrapperRef} className="h-full w-full bg-[var(--canvas-bg)]">
       <ReactFlow
         nodes={nodes}
         edges={flowEdges}
         nodeTypes={nodeTypes}
-        onInit={(instance) => {
-          flowInstanceRef.current = instance
-        }}
+        onInit={setFlowInstance}
         onNodesChange={onNodesChange}
         onNodeDoubleClick={handleNodeDoubleClick}
         fitView

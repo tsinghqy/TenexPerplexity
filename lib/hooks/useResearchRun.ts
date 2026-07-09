@@ -1,11 +1,15 @@
 'use client'
 
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   deepenResearch,
+  listResearchRuns,
+  loadResearchRun,
   planResearch,
+  summarizeBranch,
   updateResearchRunStatus,
   type PlannedBranch,
+  type ResearchRunRecord,
 } from '@/lib/api/research'
 import { sendMessageStreaming } from '@/lib/api/chat-stream'
 import type { NodeClaim } from '@/lib/api/verify'
@@ -32,6 +36,8 @@ export interface ResearchBranch {
   preview: string
   /** 0–100 grounded score once the branch is verified. */
   confidence: number | null
+  /** Short synthesis of the branch's findings, written into the branch chat. */
+  summary: string | null
   assistantNodeId: string | null
   error: string | null
 }
@@ -51,10 +57,11 @@ export interface ResearchRunState {
   rootChatId: string
   rootNodeId: string
   branches: ResearchBranch[]
-  winningChatId: string | null
   overallConfidence: number | null
   synthesis: string | null
   synthesisClaims: NodeClaim[]
+  /** Judge's 1–2 sentence conclusion for hover tooltips. */
+  quickSummary: string | null
   error: string | null
 }
 
@@ -64,12 +71,12 @@ interface UseResearchRunOptions {
   onGraphChanged?: () => void
   /** P10 hook-in: verify one finished branch answer, return its grounded score. */
   verifyBranch?: (assistantNodeId: string) => Promise<number | null>
-  /** P10 hook-in: judge branches + synthesize the final answer once all branches finish. */
+  /** P10 hook-in: synthesize the final answer once all branches finish. */
   synthesizeRun?: (runId: string) => Promise<{
-    winningChatId: string | null
     overallConfidence: number | null
     synthesis: string | null
     synthesisClaims: NodeClaim[]
+    quickSummary: string | null
   } | null>
 }
 
@@ -87,6 +94,7 @@ function toQueuedBranch(
     parentNodeId,
     preview: '',
     confidence: null,
+    summary: null,
     assistantNodeId: null,
     error: null,
   }
@@ -114,10 +122,75 @@ export function pickStrongestBranch(
 export function useResearchRun(options: UseResearchRunOptions) {
   const [run, setRun] = useState<ResearchRunState | null>(null)
   const [isRunning, setIsRunning] = useState(false)
+  const [runs, setRuns] = useState<ResearchRunRecord[]>([])
+  const [isLoadingRuns, setIsLoadingRuns] = useState(true)
+  const [isLoadingRun, setIsLoadingRun] = useState(false)
   const cancelledRef = useRef(false)
   const abortControllersRef = useRef(new Map<string, AbortController>())
   const optionsRef = useRef(options)
   optionsRef.current = options
+
+  const refreshRuns = useCallback(async () => {
+    const result = await listResearchRuns()
+    if (result.success) {
+      setRuns(result.runs ?? [])
+    }
+    setIsLoadingRuns(false)
+  }, [])
+
+  useEffect(() => {
+    void refreshRuns()
+  }, [refreshRuns])
+
+  /** Hydrate a past run from the database into the panel. */
+  const selectRun = useCallback(
+    async (runId: string) => {
+      if (isRunning || run?.runId === runId) {
+        return
+      }
+
+      setIsLoadingRun(true)
+      const loaded = await loadResearchRun(runId)
+      setIsLoadingRun(false)
+      if (!loaded.success || !loaded.run) {
+        return
+      }
+
+      // A non-terminal status on a loaded run means it was abandoned
+      // mid-flight (e.g. page refresh); it can't resume, so show it cancelled.
+      const phase: ResearchRunPhase =
+        loaded.run.status === 'complete' || loaded.run.status === 'failed'
+          ? loaded.run.status
+          : 'cancelled'
+
+      setRun({
+        runId: loaded.run.id,
+        question: loaded.run.question,
+        phase,
+        rootChatId: loaded.run.root_chat_id ?? '',
+        rootNodeId: loaded.rootNodeId ?? '',
+        branches: (loaded.branches ?? []).map((branch) => ({
+          chatId: branch.chatId,
+          subQuestion: branch.subQuestion,
+          rationale: '',
+          status: branch.status === 'done' ? 'done' : 'cancelled',
+          depth: branch.depth,
+          parentNodeId: branch.parentNodeId,
+          preview: branch.preview,
+          confidence: branch.confidence,
+          summary: branch.summary,
+          assistantNodeId: branch.assistantNodeId,
+          error: null,
+        })),
+        overallConfidence: loaded.run.overall_confidence,
+        synthesis: loaded.synthesis ?? null,
+        synthesisClaims: loaded.synthesisClaims ?? [],
+        quickSummary: loaded.quickSummary ?? null,
+        error: null,
+      })
+    },
+    [isRunning, run?.runId]
+  )
 
   const updateBranch = useCallback(
     (chatId: string, patch: Partial<ResearchBranch>) => {
@@ -210,9 +283,16 @@ export function useResearchRun(options: UseResearchRunOptions) {
         }
       }
 
-      updateBranch(branch.chatId, { status: 'done', confidence })
+      // Branch-level synthesis: short findings summary appended to the branch chat.
+      let summary: string | null = null
+      if (assistantNodeId && !cancelledRef.current) {
+        const summarized = await summarizeBranch(branch.chatId)
+        summary = summarized.success ? (summarized.summary ?? null) : null
+      }
+
+      updateBranch(branch.chatId, { status: 'done', confidence, summary })
       optionsRef.current.onGraphChanged?.()
-      return { ...branch, status: 'done', assistantNodeId, confidence }
+      return { ...branch, status: 'done', assistantNodeId, confidence, summary }
     },
     [appendBranchPreview, updateBranch]
   )
@@ -255,10 +335,10 @@ export function useResearchRun(options: UseResearchRunOptions) {
         rootChatId: '',
         rootNodeId: '',
         branches: [],
-        winningChatId: null,
         overallConfidence: null,
         synthesis: null,
         synthesisClaims: [],
+        quickSummary: null,
         error: null,
       })
 
@@ -273,6 +353,8 @@ export function useResearchRun(options: UseResearchRunOptions) {
         return
       }
 
+      void refreshRuns()
+
       const branches = plan.branches.map((planned) =>
         toQueuedBranch(planned, 1, plan.rootNodeId!)
       )
@@ -283,10 +365,10 @@ export function useResearchRun(options: UseResearchRunOptions) {
         rootChatId: plan.rootChatId || '',
         rootNodeId: plan.rootNodeId,
         branches,
-        winningChatId: null,
         overallConfidence: null,
         synthesis: null,
         synthesisClaims: [],
+        quickSummary: null,
         error: null,
       })
       optionsRef.current.onGraphChanged?.()
@@ -335,15 +417,16 @@ export function useResearchRun(options: UseResearchRunOptions) {
                 ? {
                     ...current,
                     phase: 'complete',
-                    winningChatId: result.winningChatId,
                     overallConfidence: result.overallConfidence,
                     synthesis: result.synthesis,
                     synthesisClaims: result.synthesisClaims,
+                    quickSummary: result.quickSummary,
                   }
                 : current
             )
             optionsRef.current.onGraphChanged?.()
             setIsRunning(false)
+            void refreshRuns()
             return
           }
         } catch {
@@ -359,13 +442,15 @@ export function useResearchRun(options: UseResearchRunOptions) {
             : current
         )
         setIsRunning(false)
+        void refreshRuns()
         return
       }
 
       setRun((current) => (current ? { ...current, phase: 'complete' } : current))
       setIsRunning(false)
+      void refreshRuns()
     },
-    [isRunning, streamBranch]
+    [isRunning, refreshRuns, runBranchPool]
   )
 
   const cancelResearch = useCallback(async () => {
@@ -397,8 +482,9 @@ export function useResearchRun(options: UseResearchRunOptions) {
 
     if (run.runId) {
       await updateResearchRunStatus(run.runId, 'cancelled')
+      void refreshRuns()
     }
-  }, [run])
+  }, [refreshRuns, run])
 
   const retryBranch = useCallback(
     async (chatId: string) => {
@@ -428,6 +514,10 @@ export function useResearchRun(options: UseResearchRunOptions) {
   return {
     run,
     isRunning,
+    runs,
+    isLoadingRuns,
+    isLoadingRun,
+    selectRun,
     startResearch,
     cancelResearch,
     retryBranch,

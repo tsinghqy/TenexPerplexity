@@ -10,8 +10,8 @@ export interface ChatSummary {
   position_y?: number | null
   research_run_id?: string | null
   confidence?: number | null
-  /** True when a research run judge crowned this branch as the winner. */
-  is_winner?: boolean
+  /** Research synthesis summary for hover tooltips (root conclusion or branch finding). */
+  summary?: string | null
 }
 
 export interface ChatWithNodesResponse {

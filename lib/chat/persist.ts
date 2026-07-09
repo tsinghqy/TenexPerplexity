@@ -94,6 +94,7 @@ export async function insertUserMessage(
     userId: string
     content: string
     parentId: string | null
+    embedding?: number[] | null
   }
 ): Promise<PersistedMessageNode | null> {
   const { data, error } = await supabase
@@ -104,7 +105,7 @@ export async function insertUserMessage(
       parent_id: params.parentId,
       role: 'user',
       content: params.content,
-      embedding: null,
+      embedding: params.embedding ?? null,
     })
     .select(MESSAGE_NODE_SELECT)
     .single()
@@ -127,6 +128,25 @@ export async function insertUserMessage(
   }
 
   return data
+}
+
+export async function updateNodeEmbedding(
+  supabase: AppSupabaseClient,
+  params: {
+    nodeId: string
+    userId: string
+    embedding: number[]
+  }
+): Promise<void> {
+  const { error } = await supabase
+    .from('nodes')
+    .update({ embedding: params.embedding })
+    .eq('id', params.nodeId)
+    .eq('user_id', params.userId)
+
+  if (error) {
+    console.error('[persist] updateNodeEmbedding failed:', error.message)
+  }
 }
 
 export async function insertAssistantMessage(

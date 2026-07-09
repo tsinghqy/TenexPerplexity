@@ -113,7 +113,38 @@ export interface Database {
       }
     }
     Views: Record<string, never>
-    Functions: Record<string, never>
+    Functions: {
+      search_chat_nodes_safe: {
+        Args: {
+          p_user_id: string
+          p_chat_id: string
+          p_query_embedding: number[]
+          p_limit?: number
+          p_similarity_threshold?: number
+        }
+        Returns: {
+          id: string
+          chat_id: string
+          user_id: string
+          parent_id: string | null
+          role: MessageRole
+          content: string
+          similarity: number
+          created_at: string
+        }[]
+      }
+      get_nodes_needing_embeddings: {
+        Args: {
+          p_user_id: string
+          p_limit?: number
+        }
+        Returns: {
+          id: string
+          content: string
+          created_at: string
+        }[]
+      }
+    }
     Enums: {
       message_role: MessageRole
       link_type: LinkType

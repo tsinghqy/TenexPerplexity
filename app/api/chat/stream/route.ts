@@ -15,10 +15,18 @@ import {
   insertUserMessage,
   persistTitleForNewChat,
   resolveParentIdForNewUserMessage,
+  updateNodeEmbedding,
   verifyChatOwnership,
 } from '@/lib/chat/persist'
+import { generateEmbeddingOrNull } from '@/lib/llm/embeddings'
 import { getDefaultModelId, isValidModelId } from '@/lib/llm/models'
 import { llmProviderManager } from '@/lib/llm/provider-manager'
+import {
+  appendContextToSystemPrompt,
+  buildContextString,
+  contextMessagesToChatMessages,
+  retrieveLinearChatContext,
+} from '@/lib/rag/retriever'
 import type { Citation } from '@/lib/llm/citations'
 import type { ChatMessage } from '@/lib/llm/types'
 
@@ -48,13 +56,6 @@ function resolveModelId(requestedModelId?: string): {
     return { isValid: false, errorMessage: `${CHAT_ERROR_MESSAGE.INVALID_MODEL}: ${modelId}` }
   }
   return { isValid: true, modelId }
-}
-
-function buildConversationMessages(
-  history: ChatMessage[] | undefined,
-  userMessage: string
-): ChatMessage[] {
-  return [...(history ?? []), { role: 'user', content: userMessage }]
 }
 
 export async function POST(request: Request) {
@@ -111,21 +112,20 @@ export async function POST(request: Request) {
     parsedBody.data.parentId
   )
 
+  // Start embedding in parallel with the user-message insert.
+  const embeddingPromise = generateEmbeddingOrNull(userMessageContent)
+
   const userNode = await insertUserMessage(supabase, {
     chatId,
     userId: user.id,
     content: userMessageContent,
     parentId,
+    embedding: null,
   })
 
   if (!userNode) {
     return createJsonErrorResponse('Failed to save user message', 500)
   }
-
-  const conversationMessages = buildConversationMessages(
-    parsedBody.data.history,
-    userMessageContent
-  )
 
   const encoder = new TextEncoder()
   const stream = new ReadableStream({
@@ -139,10 +139,37 @@ export async function POST(request: Request) {
           persistedTitle = await persistTitleForNewChat(supabase, chatId!, userMessageContent)
         }
 
+        const embedding = await embeddingPromise
+        if (embedding) {
+          // Fire-and-forget persist so vector search works on later turns.
+          void updateNodeEmbedding(supabase, {
+            nodeId: userNode.id,
+            userId: user.id,
+            embedding,
+          })
+        }
+
+        const contextMessages = await retrieveLinearChatContext(supabase, {
+          chatId: chatId!,
+          userId: user.id,
+          excludeNodeId: userNode.id,
+          queryEmbedding: embedding,
+        })
+
+        const conversationMessages: ChatMessage[] = [
+          ...contextMessagesToChatMessages(contextMessages),
+          { role: 'user', content: userMessageContent },
+        ]
+
+        const systemPrompt = appendContextToSystemPrompt(
+          DEFAULT_CHAT_SYSTEM_PROMPT,
+          buildContextString(contextMessages)
+        )
+
         const result = await llmProviderManager.streamChat({
           modelId,
           messages: conversationMessages,
-          systemPrompt: DEFAULT_CHAT_SYSTEM_PROMPT,
+          systemPrompt,
           useWebSearch,
           signal: request.signal,
           onChunk: async (chunk) => {

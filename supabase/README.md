@@ -1,13 +1,25 @@
-# Database setup (P4+)
+# Database setup
 
-Run these SQL files in order in the Supabase SQL Editor for your Tenexity project:
+## P4 — chats / nodes / RLS
 
-1. `supabase/migrations/001_enable_pgvector.sql`
-2. `supabase/migrations/002_create_chats_table.sql`
-3. `supabase/migrations/003_create_nodes_table.sql`
-4. `supabase/migrations/004_create_node_links_table.sql`
-5. `supabase/migrations/005_setup_rls_policies.sql`
+Run in the Supabase SQL Editor (once):
 
-Or paste the combined file `supabase/migrations/p4_combined.sql` once.
+- `supabase/migrations/p4_combined.sql`
 
-After applying, refresh the app — chats and messages will persist across reloads.
+Or files `001` → `005` in order.
+
+## P5 — linear RAG helpers
+
+After P4 is applied, run:
+
+- `supabase/migrations/p5_combined.sql`
+
+This adds `search_chat_nodes_safe`, `get_nodes_needing_embeddings`, and an index for chat message queries.
+
+Cross-chat / `node_parent_paths` RPCs are deferred to P6 (graph branching).
+
+## Verify
+
+1. Table Editor shows `chats`, `nodes`, `node_links`
+2. Send a message → user row in `nodes` gets an `embedding` shortly after
+3. Follow-up in the same chat answers using prior turns without relying on client history alone

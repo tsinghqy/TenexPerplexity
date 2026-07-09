@@ -7,10 +7,19 @@ export interface StreamChatClientRequest {
   history: ChatMessage[]
   modelId?: string
   useWebSearch?: boolean
+  chatId?: string
   signal?: AbortSignal
   onChunk: (chunk: string) => void
   onCitations?: (citations: Citation[]) => void
-  onComplete?: (content: string, modelId: string, citations: Citation[]) => void
+  onComplete?: (payload: {
+    content: string
+    modelId: string
+    citations: Citation[]
+    chatId?: string
+    title?: string | null
+    userMessageId?: string
+    assistantMessageId?: string
+  }) => void
   onError?: (errorMessage: string) => void
 }
 
@@ -20,6 +29,10 @@ interface StreamEventPayload {
   error?: string
   modelId?: string
   citations?: Citation[]
+  chatId?: string
+  title?: string | null
+  userMessageId?: string
+  assistantMessageId?: string
 }
 
 function parseSseDataLine(line: string): StreamEventPayload | null {
@@ -48,6 +61,7 @@ export async function sendMessageStreaming(request: StreamChatClientRequest): Pr
       history: request.history,
       modelId: request.modelId,
       useWebSearch: request.useWebSearch === true,
+      chatId: request.chatId,
     }),
     signal: request.signal,
   })
@@ -78,6 +92,10 @@ export async function sendMessageStreaming(request: StreamChatClientRequest): Pr
   let completedContent = ''
   let completedModelId = ''
   let completedCitations: Citation[] = []
+  let completedChatId: string | undefined
+  let completedTitle: string | null | undefined
+  let completedUserMessageId: string | undefined
+  let completedAssistantMessageId: string | undefined
 
   while (true) {
     const { done, value } = await reader.read()
@@ -110,7 +128,19 @@ export async function sendMessageStreaming(request: StreamChatClientRequest): Pr
         if (payload.citations?.length) {
           completedCitations = payload.citations
         }
-        request.onComplete?.(completedContent, completedModelId, completedCitations)
+        completedChatId = payload.chatId
+        completedTitle = payload.title
+        completedUserMessageId = payload.userMessageId
+        completedAssistantMessageId = payload.assistantMessageId
+        request.onComplete?.({
+          content: completedContent,
+          modelId: completedModelId,
+          citations: completedCitations,
+          chatId: completedChatId,
+          title: completedTitle,
+          userMessageId: completedUserMessageId,
+          assistantMessageId: completedAssistantMessageId,
+        })
       }
 
       if (payload.type === STREAM_EVENT.ERROR && payload.error) {

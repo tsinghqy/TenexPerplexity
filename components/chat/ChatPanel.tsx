@@ -3,6 +3,7 @@
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import type { Citation } from '@/lib/llm/citations'
+import type { ChatSummary } from '@/lib/api/chat'
 import type { ChatThreadMessage } from '@/lib/hooks/useStreamingChat'
 
 function CitationList({ citations }: { citations: Citation[] }) {
@@ -30,11 +31,6 @@ function CitationList({ citations }: { citations: Citation[] }) {
               <span className="mt-0.5 line-clamp-1 text-xs text-muted-foreground">
                 {citation.url}
               </span>
-              {citation.snippet ? (
-                <span className="mt-1 line-clamp-2 text-xs text-muted-foreground/90">
-                  {citation.snippet}
-                </span>
-              ) : null}
             </a>
           </li>
         ))}
@@ -43,15 +39,88 @@ function CitationList({ citations }: { citations: Citation[] }) {
   )
 }
 
-interface ChatMessageListProps {
-  messages: ChatThreadMessage[]
+interface ChatSidebarProps {
+  chats: ChatSummary[]
+  activeChatId: string | null
+  isLoading: boolean
+  disabled?: boolean
+  onSelectChat: (chatId: string) => void
+  onNewChat: () => void
 }
 
-export function ChatMessageList({ messages }: ChatMessageListProps) {
+export function ChatSidebar({
+  chats,
+  activeChatId,
+  isLoading,
+  disabled,
+  onSelectChat,
+  onNewChat,
+}: ChatSidebarProps) {
+  return (
+    <aside className="flex h-full w-64 shrink-0 flex-col border-r border-white/10 bg-base-200/40">
+      <div className="border-b border-white/10 p-3">
+        <Button
+          type="button"
+          className="w-full"
+          onClick={onNewChat}
+          disabled={disabled}
+        >
+          New chat
+        </Button>
+      </div>
+      <div className="flex-1 overflow-y-auto p-2">
+        {isLoading ? (
+          <p className="px-2 py-3 text-xs text-muted-foreground">Loading chats…</p>
+        ) : chats.length === 0 ? (
+          <p className="px-2 py-3 text-xs text-muted-foreground">
+            No saved chats yet. Send a message to create one.
+          </p>
+        ) : (
+          <ul className="space-y-1">
+            {chats.map((chat) => (
+              <li key={chat.id}>
+                <button
+                  type="button"
+                  disabled={disabled}
+                  onClick={() => onSelectChat(chat.id)}
+                  className={cn(
+                    'w-full rounded-lg px-3 py-2 text-left text-sm transition',
+                    activeChatId === chat.id
+                      ? 'bg-primary/20 text-foreground'
+                      : 'text-muted-foreground hover:bg-base-100 hover:text-foreground'
+                  )}
+                >
+                  <span className="line-clamp-2">
+                    {chat.title?.trim() || 'Untitled chat'}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </aside>
+  )
+}
+
+interface ChatMessageListProps {
+  messages: ChatThreadMessage[]
+  isLoading?: boolean
+}
+
+export function ChatMessageList({ messages, isLoading }: ChatMessageListProps) {
+  if (isLoading) {
+    return (
+      <div className="flex flex-1 items-center justify-center px-4 text-sm text-muted-foreground">
+        Loading conversation…
+      </div>
+    )
+  }
+
   if (messages.length === 0) {
     return (
       <div className="flex flex-1 items-center justify-center px-4 text-center text-sm text-muted-foreground">
-        Ask a current-events question with web search on to see live sources.
+        Ask anything. Conversations are saved and reload after refresh.
       </div>
     )
   }

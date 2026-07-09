@@ -6,16 +6,118 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[]
 
-/**
- * Minimal Database typing for P1 (auth only).
- * Full chats/nodes/paths types land with migrations in P4+.
- */
+export type MessageRole = 'user' | 'assistant'
+export type LinkType = 'manual' | 'auto_suggested' | 'accepted'
+
 export interface Database {
   public: {
-    Tables: Record<string, never>
+    Tables: {
+      chats: {
+        Row: {
+          id: string
+          user_id: string
+          title: string | null
+          root_node_id: string | null
+          is_expanded: boolean | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          title?: string | null
+          root_node_id?: string | null
+          is_expanded?: boolean | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          title?: string | null
+          root_node_id?: string | null
+          is_expanded?: boolean | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      nodes: {
+        Row: {
+          id: string
+          chat_id: string
+          user_id: string
+          parent_id: string | null
+          role: MessageRole
+          content: string
+          embedding: number[] | null
+          position_x: number | null
+          position_y: number | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          chat_id: string
+          user_id: string
+          parent_id?: string | null
+          role: MessageRole
+          content: string
+          embedding?: number[] | null
+          position_x?: number | null
+          position_y?: number | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          chat_id?: string
+          user_id?: string
+          parent_id?: string | null
+          role?: MessageRole
+          content?: string
+          embedding?: number[] | null
+          position_x?: number | null
+          position_y?: number | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      node_links: {
+        Row: {
+          id: string
+          source_node_id: string
+          target_node_id: string
+          user_id: string
+          link_type: LinkType | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          source_node_id: string
+          target_node_id: string
+          user_id: string
+          link_type?: LinkType | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          source_node_id?: string
+          target_node_id?: string
+          user_id?: string
+          link_type?: LinkType | null
+          created_at?: string
+        }
+        Relationships: []
+      }
+    }
     Views: Record<string, never>
     Functions: Record<string, never>
-    Enums: Record<string, never>
+    Enums: {
+      message_role: MessageRole
+      link_type: LinkType
+    }
     CompositeTypes: Record<string, never>
   }
 }

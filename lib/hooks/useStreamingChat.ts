@@ -1,6 +1,7 @@
 'use client'
 
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { getChat, getChats, type ChatSummary } from '@/lib/api/chat'
 import { sendMessageStreaming } from '@/lib/api/chat-stream'
 import { CLIENT_DEFAULT_MODEL_ID } from '@/lib/llm/client-defaults'
 import type { Citation } from '@/lib/llm/citations'
@@ -29,17 +30,95 @@ function toHistoryMessages(messages: ChatThreadMessage[]): ChatMessage[] {
 
 export function useStreamingChat(initialModelId?: string) {
   const [messages, setMessages] = useState<ChatThreadMessage[]>([])
+  const [chats, setChats] = useState<ChatSummary[]>([])
+  const [activeChatId, setActiveChatId] = useState<string | null>(null)
+  const [isLoadingChats, setIsLoadingChats] = useState(true)
+  const [isLoadingMessages, setIsLoadingMessages] = useState(false)
   const [isStreaming, setIsStreaming] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [selectedModelId, setSelectedModelId] = useState(initialModelId || CLIENT_DEFAULT_MODEL_ID)
   const [useWebSearch, setUseWebSearch] = useState(true)
   const abortControllerRef = useRef<AbortController | null>(null)
 
+  const refreshChats = useCallback(async () => {
+    const result = await getChats()
+    if (!result.success) {
+      setErrorMessage(result.error || 'Failed to load chats')
+      return
+    }
+    setChats(result.chats || [])
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadInitialChats() {
+      setIsLoadingChats(true)
+      const result = await getChats()
+      if (cancelled) {
+        return
+      }
+
+      if (!result.success) {
+        setErrorMessage(result.error || 'Failed to load chats')
+        setIsLoadingChats(false)
+        return
+      }
+
+      setChats(result.chats || [])
+      setIsLoadingChats(false)
+    }
+
+    void loadInitialChats()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   const stopStreaming = useCallback(() => {
     abortControllerRef.current?.abort()
     abortControllerRef.current = null
     setIsStreaming(false)
   }, [])
+
+  const selectChat = useCallback(
+    async (chatId: string) => {
+      if (isStreaming) {
+        return
+      }
+
+      setErrorMessage(null)
+      setIsLoadingMessages(true)
+      setActiveChatId(chatId)
+
+      const result = await getChat(chatId)
+      setIsLoadingMessages(false)
+
+      if (!result.success || !result.chat) {
+        setErrorMessage(result.error || 'Failed to load chat')
+        return
+      }
+
+      setMessages(
+        result.chat.nodes.map((node) => ({
+          id: node.id,
+          role: node.role,
+          content: node.content,
+        }))
+      )
+    },
+    [isStreaming]
+  )
+
+  const startNewChat = useCallback(() => {
+    if (isStreaming) {
+      return
+    }
+    stopStreaming()
+    setActiveChatId(null)
+    setMessages([])
+    setErrorMessage(null)
+  }, [isStreaming, stopStreaming])
 
   const sendMessage = useCallback(
     async (rawMessage: string) => {
@@ -50,14 +129,15 @@ export function useStreamingChat(initialModelId?: string) {
 
       setErrorMessage(null)
 
+      const tempUserId = createMessageId('user')
+      const tempAssistantId = createMessageId('assistant')
       const userMessage: ChatThreadMessage = {
-        id: createMessageId('user'),
+        id: tempUserId,
         role: 'user',
         content: messageContent,
       }
-      const assistantMessageId = createMessageId('assistant')
       const assistantPlaceholder: ChatThreadMessage = {
-        id: assistantMessageId,
+        id: tempAssistantId,
         role: 'assistant',
         content: '',
         isStreaming: true,
@@ -77,11 +157,12 @@ export function useStreamingChat(initialModelId?: string) {
           history,
           modelId: selectedModelId,
           useWebSearch,
+          chatId: activeChatId || undefined,
           signal: abortController.signal,
           onChunk: (chunk) => {
             setMessages((current) =>
               current.map((message) =>
-                message.id === assistantMessageId
+                message.id === tempAssistantId
                   ? { ...message, content: message.content + chunk }
                   : message
               )
@@ -90,29 +171,41 @@ export function useStreamingChat(initialModelId?: string) {
           onCitations: (citations) => {
             setMessages((current) =>
               current.map((message) =>
-                message.id === assistantMessageId ? { ...message, citations } : message
+                message.id === tempAssistantId ? { ...message, citations } : message
               )
             )
           },
-          onComplete: (content, _modelId, citations) => {
+          onComplete: (payload) => {
+            if (payload.chatId) {
+              setActiveChatId(payload.chatId)
+            }
+
             setMessages((current) =>
-              current.map((message) =>
-                message.id === assistantMessageId
-                  ? {
-                      ...message,
-                      content,
-                      citations: citations.length > 0 ? citations : message.citations,
-                      isStreaming: false,
-                    }
-                  : message
-              )
+              current.map((message) => {
+                if (message.id === tempUserId && payload.userMessageId) {
+                  return { ...message, id: payload.userMessageId }
+                }
+                if (message.id === tempAssistantId) {
+                  return {
+                    ...message,
+                    id: payload.assistantMessageId || message.id,
+                    content: payload.content,
+                    citations:
+                      payload.citations.length > 0 ? payload.citations : message.citations,
+                    isStreaming: false,
+                  }
+                }
+                return message
+              })
             )
+
+            void refreshChats()
           },
           onError: (streamErrorMessage) => {
             setErrorMessage(streamErrorMessage)
             setMessages((current) =>
               current.map((message) =>
-                message.id === assistantMessageId
+                message.id === tempAssistantId
                   ? {
                       ...message,
                       content: message.content || 'Sorry — something went wrong.',
@@ -127,7 +220,7 @@ export function useStreamingChat(initialModelId?: string) {
         if (abortController.signal.aborted) {
           setMessages((current) =>
             current.map((message) =>
-              message.id === assistantMessageId ? { ...message, isStreaming: false } : message
+              message.id === tempAssistantId ? { ...message, isStreaming: false } : message
             )
           )
           return
@@ -141,17 +234,15 @@ export function useStreamingChat(initialModelId?: string) {
         abortControllerRef.current = null
       }
     },
-    [isStreaming, messages, selectedModelId, useWebSearch]
+    [activeChatId, isStreaming, messages, refreshChats, selectedModelId, useWebSearch]
   )
-
-  const clearMessages = useCallback(() => {
-    stopStreaming()
-    setMessages([])
-    setErrorMessage(null)
-  }, [stopStreaming])
 
   return {
     messages,
+    chats,
+    activeChatId,
+    isLoadingChats,
+    isLoadingMessages,
     isStreaming,
     errorMessage,
     selectedModelId,
@@ -160,6 +251,8 @@ export function useStreamingChat(initialModelId?: string) {
     setUseWebSearch,
     sendMessage,
     stopStreaming,
-    clearMessages,
+    selectChat,
+    startNewChat,
+    refreshChats,
   }
 }

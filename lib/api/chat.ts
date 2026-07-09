@@ -1,4 +1,5 @@
 import type { PersistedMessageNode } from '@/lib/chat/persist'
+import type { NodeClaim } from '@/lib/api/verify'
 
 export interface ChatSummary {
   id: string
@@ -7,6 +8,10 @@ export interface ChatSummary {
   created_at: string
   position_x?: number | null
   position_y?: number | null
+  research_run_id?: string | null
+  confidence?: number | null
+  /** True when a research run judge crowned this branch as the winner. */
+  is_winner?: boolean
 }
 
 export interface ChatWithNodesResponse {
@@ -18,6 +23,8 @@ export interface ChatWithNodesResponse {
     created_at: string
     nodes: PersistedMessageNode[]
   }
+  /** Persisted lie-detector verdicts for the chat's assistant messages. */
+  claims?: NodeClaim[]
   error?: string
 }
 

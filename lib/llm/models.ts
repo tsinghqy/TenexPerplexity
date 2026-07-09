@@ -90,3 +90,11 @@ export function getChatModels(): ModelConfig[] {
 export function getModelsByProvider(provider: ModelConfig['provider']): ModelConfig[] {
   return getChatModels().filter((model) => model.provider === provider)
 }
+
+export function modelSupportsCapability(
+  modelId: string,
+  capability: keyof ModelCapabilities
+): boolean {
+  const model = getModelById(modelId)
+  return Boolean(model?.capabilities[capability])
+}

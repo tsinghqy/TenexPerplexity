@@ -1,3 +1,5 @@
+import type { Citation } from './citations'
+
 export type ChatRole = 'user' | 'assistant' | 'system'
 
 export interface ChatMessage {
@@ -16,12 +18,15 @@ export interface StreamChatOptions {
   systemPrompt?: string
   temperature?: number
   maxTokens?: number
+  useWebSearch?: boolean
   signal?: AbortSignal
   onChunk: (chunk: string) => void | Promise<void>
+  onCitations?: (citations: Citation[]) => void | Promise<void>
 }
 
 export interface ChatGenerationResult {
   content: string
+  citations?: Citation[]
   tokenUsage?: TokenUsage
 }
 

@@ -1,4 +1,5 @@
 import { STREAM_EVENT } from '@/lib/chat/constants'
+import type { Citation } from '@/lib/llm/citations'
 
 export function createSseDataLine(payload: unknown): string {
   return `data: ${JSON.stringify(payload)}\n\n`
@@ -8,15 +9,24 @@ export function createChunkEvent(content: string): string {
   return createSseDataLine({ type: STREAM_EVENT.CHUNK, content })
 }
 
+export function createCitationsEvent(citations: Citation[]): string {
+  return createSseDataLine({ type: STREAM_EVENT.CITATIONS, citations })
+}
+
 export function createErrorEvent(errorMessage: string): string {
   return createSseDataLine({ type: STREAM_EVENT.ERROR, error: errorMessage })
 }
 
-export function createCompleteEvent(content: string, modelId: string): string {
+export function createCompleteEvent(
+  content: string,
+  modelId: string,
+  citations?: Citation[]
+): string {
   return createSseDataLine({
     type: STREAM_EVENT.COMPLETE,
     content,
     modelId,
+    citations: citations ?? [],
   })
 }
 

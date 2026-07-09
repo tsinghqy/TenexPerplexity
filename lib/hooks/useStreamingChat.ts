@@ -3,12 +3,14 @@
 import { useCallback, useRef, useState } from 'react'
 import { sendMessageStreaming } from '@/lib/api/chat-stream'
 import { CLIENT_DEFAULT_MODEL_ID } from '@/lib/llm/client-defaults'
+import type { Citation } from '@/lib/llm/citations'
 import type { ChatMessage } from '@/lib/llm/types'
 
 export interface ChatThreadMessage {
   id: string
   role: 'user' | 'assistant'
   content: string
+  citations?: Citation[]
   isStreaming?: boolean
 }
 
@@ -30,6 +32,7 @@ export function useStreamingChat(initialModelId?: string) {
   const [isStreaming, setIsStreaming] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [selectedModelId, setSelectedModelId] = useState(initialModelId || CLIENT_DEFAULT_MODEL_ID)
+  const [useWebSearch, setUseWebSearch] = useState(true)
   const abortControllerRef = useRef<AbortController | null>(null)
 
   const stopStreaming = useCallback(() => {
@@ -73,6 +76,7 @@ export function useStreamingChat(initialModelId?: string) {
           message: messageContent,
           history,
           modelId: selectedModelId,
+          useWebSearch,
           signal: abortController.signal,
           onChunk: (chunk) => {
             setMessages((current) =>
@@ -83,11 +87,23 @@ export function useStreamingChat(initialModelId?: string) {
               )
             )
           },
-          onComplete: (content) => {
+          onCitations: (citations) => {
+            setMessages((current) =>
+              current.map((message) =>
+                message.id === assistantMessageId ? { ...message, citations } : message
+              )
+            )
+          },
+          onComplete: (content, _modelId, citations) => {
             setMessages((current) =>
               current.map((message) =>
                 message.id === assistantMessageId
-                  ? { ...message, content, isStreaming: false }
+                  ? {
+                      ...message,
+                      content,
+                      citations: citations.length > 0 ? citations : message.citations,
+                      isStreaming: false,
+                    }
                   : message
               )
             )
@@ -125,7 +141,7 @@ export function useStreamingChat(initialModelId?: string) {
         abortControllerRef.current = null
       }
     },
-    [isStreaming, messages, selectedModelId]
+    [isStreaming, messages, selectedModelId, useWebSearch]
   )
 
   const clearMessages = useCallback(() => {
@@ -140,6 +156,8 @@ export function useStreamingChat(initialModelId?: string) {
     errorMessage,
     selectedModelId,
     setSelectedModelId,
+    useWebSearch,
+    setUseWebSearch,
     sendMessage,
     stopStreaming,
     clearMessages,

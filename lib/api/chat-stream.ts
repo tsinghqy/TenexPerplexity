@@ -1,13 +1,16 @@
 import { STREAM_EVENT } from '@/lib/chat/constants'
+import type { Citation } from '@/lib/llm/citations'
 import type { ChatMessage } from '@/lib/llm/types'
 
 export interface StreamChatClientRequest {
   message: string
   history: ChatMessage[]
   modelId?: string
+  useWebSearch?: boolean
   signal?: AbortSignal
   onChunk: (chunk: string) => void
-  onComplete?: (content: string, modelId: string) => void
+  onCitations?: (citations: Citation[]) => void
+  onComplete?: (content: string, modelId: string, citations: Citation[]) => void
   onError?: (errorMessage: string) => void
 }
 
@@ -16,6 +19,7 @@ interface StreamEventPayload {
   content?: string
   error?: string
   modelId?: string
+  citations?: Citation[]
 }
 
 function parseSseDataLine(line: string): StreamEventPayload | null {
@@ -43,6 +47,7 @@ export async function sendMessageStreaming(request: StreamChatClientRequest): Pr
       message: request.message,
       history: request.history,
       modelId: request.modelId,
+      useWebSearch: request.useWebSearch === true,
     }),
     signal: request.signal,
   })
@@ -72,6 +77,7 @@ export async function sendMessageStreaming(request: StreamChatClientRequest): Pr
   let buffer = ''
   let completedContent = ''
   let completedModelId = ''
+  let completedCitations: Citation[] = []
 
   while (true) {
     const { done, value } = await reader.read()
@@ -93,10 +99,18 @@ export async function sendMessageStreaming(request: StreamChatClientRequest): Pr
         request.onChunk(payload.content)
       }
 
+      if (payload.type === STREAM_EVENT.CITATIONS && payload.citations?.length) {
+        completedCitations = payload.citations
+        request.onCitations?.(payload.citations)
+      }
+
       if (payload.type === STREAM_EVENT.COMPLETE) {
         completedContent = payload.content || ''
         completedModelId = payload.modelId || ''
-        request.onComplete?.(completedContent, completedModelId)
+        if (payload.citations?.length) {
+          completedCitations = payload.citations
+        }
+        request.onComplete?.(completedContent, completedModelId, completedCitations)
       }
 
       if (payload.type === STREAM_EVENT.ERROR && payload.error) {

@@ -4,6 +4,7 @@ export interface StreamChatRequestBody {
   message: string
   history?: ChatMessage[]
   modelId?: string
+  useWebSearch?: boolean
 }
 
 export function parseStreamChatRequestBody(body: unknown): {
@@ -32,6 +33,7 @@ export function parseStreamChatRequestBody(body: unknown): {
     : []
 
   const modelId = typeof record.modelId === 'string' ? record.modelId : undefined
+  const useWebSearch = record.useWebSearch === true
 
   return {
     isValid: true,
@@ -39,6 +41,7 @@ export function parseStreamChatRequestBody(body: unknown): {
       message,
       history,
       modelId,
+      useWebSearch,
     },
   }
 }

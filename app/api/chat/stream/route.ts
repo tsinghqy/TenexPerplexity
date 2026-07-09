@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { parseStreamChatRequestBody } from '@/lib/chat/request'
 import {
   createChunkEvent,
+  createCitationsEvent,
   createCompleteEvent,
   createDoneEvent,
   createErrorEvent,
@@ -10,6 +11,7 @@ import {
 import { CHAT_ERROR_MESSAGE, DEFAULT_CHAT_SYSTEM_PROMPT } from '@/lib/chat/constants'
 import { getDefaultModelId, isValidModelId } from '@/lib/llm/models'
 import { llmProviderManager } from '@/lib/llm/provider-manager'
+import type { Citation } from '@/lib/llm/citations'
 import type { ChatMessage } from '@/lib/llm/types'
 
 export const runtime = 'edge'
@@ -28,7 +30,11 @@ async function authenticateRequestUser() {
   return user
 }
 
-function resolveModelId(requestedModelId?: string): { isValid: boolean; modelId?: string; errorMessage?: string } {
+function resolveModelId(requestedModelId?: string): {
+  isValid: boolean
+  modelId?: string
+  errorMessage?: string
+} {
   const modelId = requestedModelId || getDefaultModelId()
   if (!isValidModelId(modelId)) {
     return { isValid: false, errorMessage: `${CHAT_ERROR_MESSAGE.INVALID_MODEL}: ${modelId}` }
@@ -71,6 +77,7 @@ export async function POST(request: Request) {
   }
 
   const modelId = modelResolution.modelId
+  const useWebSearch = parsedBody.data.useWebSearch === true
   const conversationMessages = buildConversationMessages(
     parsedBody.data.history,
     parsedBody.data.message
@@ -80,19 +87,26 @@ export async function POST(request: Request) {
   const stream = new ReadableStream({
     async start(controller) {
       const enqueue = (text: string) => controller.enqueue(encoder.encode(text))
+      let streamedCitations: Citation[] = []
 
       try {
         const result = await llmProviderManager.streamChat({
           modelId,
           messages: conversationMessages,
           systemPrompt: DEFAULT_CHAT_SYSTEM_PROMPT,
+          useWebSearch,
           signal: request.signal,
           onChunk: async (chunk) => {
             enqueue(createChunkEvent(chunk))
           },
+          onCitations: async (citations) => {
+            streamedCitations = citations
+            enqueue(createCitationsEvent(citations))
+          },
         })
 
-        enqueue(createCompleteEvent(result.content, modelId))
+        const citations = result.citations?.length ? result.citations : streamedCitations
+        enqueue(createCompleteEvent(result.content, modelId, citations))
         enqueue(createDoneEvent())
         controller.close()
       } catch (error) {

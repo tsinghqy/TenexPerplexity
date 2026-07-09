@@ -50,6 +50,33 @@ describe('citations', () => {
     ])
   })
 
+  it('extracts web_search_call action sources', () => {
+    const citations = extractCitationsFromResponsesOutput([
+      {
+        type: 'web_search_call',
+        action: {
+          sources: [
+            { type: 'url', url: 'https://espn.com/fifa' },
+            { type: 'url', url: 'https://reuters.com/sports' },
+          ],
+        },
+      },
+    ])
+
+    expect(citations).toEqual([
+      {
+        url: 'https://espn.com/fifa',
+        title: 'espn.com',
+        snippet: undefined,
+      },
+      {
+        url: 'https://reuters.com/sports',
+        title: 'reuters.com',
+        snippet: undefined,
+      },
+    ])
+  })
+
   it('merges and dedupes citations', () => {
     const merged = mergeCitations(
       [{ url: 'https://example.com/a', title: 'A' }],

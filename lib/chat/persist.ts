@@ -19,6 +19,8 @@ export interface PersistedChat {
   user_id: string
   title: string | null
   root_node_id: string | null
+  position_x?: number | null
+  position_y?: number | null
   created_at: string
   updated_at: string
 }
@@ -125,6 +127,22 @@ export async function insertUserMessage(
     if (rootError) {
       console.error('[persist] failed to set root_node_id:', rootError.message)
     }
+  } else {
+    // First message in a forked chat still becomes this chat's root, even when parent is cross-chat.
+    const { data: chat } = await supabase
+      .from('chats')
+      .select('root_node_id')
+      .eq('id', params.chatId)
+      .eq('user_id', params.userId)
+      .single()
+
+    if (chat && !chat.root_node_id) {
+      await supabase
+        .from('chats')
+        .update({ root_node_id: data.id })
+        .eq('id', params.chatId)
+        .eq('user_id', params.userId)
+    }
   }
 
   return data
@@ -213,7 +231,7 @@ export async function listChatsForUser(
 ): Promise<PersistedChat[]> {
   const { data, error } = await supabase
     .from('chats')
-    .select('id, user_id, title, root_node_id, created_at, updated_at')
+    .select('id, user_id, title, root_node_id, position_x, position_y, created_at, updated_at')
     .eq('user_id', userId)
     .order('updated_at', { ascending: false })
 

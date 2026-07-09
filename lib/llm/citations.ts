@@ -31,78 +31,75 @@ function addCitation(
   seenUrls.add(normalizedUrl)
   citations.push({
     url: normalizedUrl,
-    title: title?.trim() || normalizedUrl,
+    title: title?.trim() || hostnameAsTitle(normalizedUrl),
     snippet: snippet?.trim() || undefined,
   })
 }
 
+function hostnameAsTitle(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, '')
+  } catch {
+    return url
+  }
+}
+
+function collectUrlCitationsFromUnknown(value: unknown, citations: Citation[], seenUrls: Set<string>) {
+  if (!value) {
+    return
+  }
+
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      collectUrlCitationsFromUnknown(item, citations, seenUrls)
+    }
+    return
+  }
+
+  if (typeof value !== 'object') {
+    return
+  }
+
+  const record = value as Record<string, unknown>
+  const type = record.type
+
+  if (type === 'url_citation' || type === 'citation' || type === 'source' || type === 'url') {
+    const nested =
+      record.url_citation && typeof record.url_citation === 'object'
+        ? (record.url_citation as Record<string, unknown>)
+        : null
+    const url =
+      (typeof record.url === 'string' && record.url) ||
+      (typeof nested?.url === 'string' && nested.url) ||
+      ''
+    const title =
+      (typeof record.title === 'string' && record.title) ||
+      (typeof nested?.title === 'string' && nested.title) ||
+      undefined
+    if (url) {
+      addCitation(citations, seenUrls, url, title)
+    }
+  }
+
+  for (const nestedValue of Object.values(record)) {
+    if (nestedValue && typeof nestedValue === 'object') {
+      collectUrlCitationsFromUnknown(nestedValue, citations, seenUrls)
+    }
+  }
+}
+
 /**
- * Extract structured url_citation annotations from OpenAI Responses API output.
+ * Extract structured url_citation annotations and web_search sources from Responses API output.
  */
 export function extractCitationsFromResponsesOutput(output: unknown): Citation[] {
-  if (!Array.isArray(output)) {
-    return []
-  }
-
   const citations: Citation[] = []
   const seenUrls = new Set<string>()
-
-  for (const item of output) {
-    if (!item || typeof item !== 'object') {
-      continue
-    }
-
-    const record = item as Record<string, unknown>
-    const content = record.content
-    if (!Array.isArray(content)) {
-      continue
-    }
-
-    for (const part of content) {
-      if (!part || typeof part !== 'object') {
-        continue
-      }
-
-      const partRecord = part as Record<string, unknown>
-      const annotations = partRecord.annotations
-      if (!Array.isArray(annotations)) {
-        continue
-      }
-
-      for (const annotation of annotations) {
-        if (!annotation || typeof annotation !== 'object') {
-          continue
-        }
-
-        const annotationRecord = annotation as Record<string, unknown>
-        if (annotationRecord.type !== 'url_citation') {
-          continue
-        }
-
-        const nested =
-          annotationRecord.url_citation && typeof annotationRecord.url_citation === 'object'
-            ? (annotationRecord.url_citation as Record<string, unknown>)
-            : null
-
-        const url =
-          (typeof annotationRecord.url === 'string' && annotationRecord.url) ||
-          (typeof nested?.url === 'string' && nested.url) ||
-          ''
-        const title =
-          (typeof annotationRecord.title === 'string' && annotationRecord.title) ||
-          (typeof nested?.title === 'string' && nested.title) ||
-          undefined
-
-        addCitation(citations, seenUrls, url, title)
-      }
-    }
-  }
-
+  collectUrlCitationsFromUnknown(output, citations, seenUrls)
   return citations
 }
 
 /**
- * Fallback: pull markdown links from model text when providers do not emit structured citations.
+ * Fallback: pull markdown links and bare URLs from model text.
  */
 export function extractCitationsFromMarkdown(content: string): Citation[] {
   const citations: Citation[] = []
@@ -110,9 +107,12 @@ export function extractCitationsFromMarkdown(content: string): Citation[] {
   const markdownLinkPattern = /\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g
 
   for (const match of content.matchAll(markdownLinkPattern)) {
-    const title = match[1]
-    const url = match[2]
-    addCitation(citations, seenUrls, url, title)
+    addCitation(citations, seenUrls, match[2], match[1])
+  }
+
+  const bareUrlPattern = /(?<!\]\()(https?:\/\/[^\s)<>"']+)/g
+  for (const match of content.matchAll(bareUrlPattern)) {
+    addCitation(citations, seenUrls, match[1])
   }
 
   return citations

@@ -7,6 +7,8 @@ export interface ChatSummary {
   title: string | null
   updated_at: string
   created_at: string
+  position_x?: number | null
+  position_y?: number | null
 }
 
 export interface ChatWithNodesResponse {
@@ -81,4 +83,92 @@ export function persistedNodesToThreadMessages(
     role: node.role,
     content: node.content,
   }))
+}
+
+export async function forkFromNode(nodeId: string): Promise<{
+  success: boolean
+  chatId?: string
+  parentNodeId?: string
+  title?: string
+  error?: string
+}> {
+  try {
+    const response = await fetch(`/api/nodes/${encodeURIComponent(nodeId)}/fork`, {
+      method: 'POST',
+    })
+    const payload = (await response.json()) as {
+      success: boolean
+      chatId?: string
+      parentNodeId?: string
+      title?: string
+      error?: string
+    }
+    if (!response.ok) {
+      return { success: false, error: payload.error || `Request failed (${response.status})` }
+    }
+    return payload
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to create branch',
+    }
+  }
+}
+
+export interface GraphEdgeSummary {
+  id: string
+  sourceChatId: string
+  targetChatId: string
+  sourceNodeId: string
+  targetNodeId: string
+}
+
+export async function getGraphEdges(): Promise<{
+  success: boolean
+  edges?: GraphEdgeSummary[]
+  error?: string
+}> {
+  try {
+    const response = await fetch('/api/edges')
+    const payload = (await response.json()) as {
+      success: boolean
+      edges?: GraphEdgeSummary[]
+      error?: string
+    }
+    if (!response.ok) {
+      return { success: false, error: payload.error || `Request failed (${response.status})` }
+    }
+    return payload
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to load graph edges',
+    }
+  }
+}
+
+export async function updateChatPosition(
+  chatId: string,
+  position: { x: number; y: number }
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const response = await fetch(`/api/chat/${encodeURIComponent(chatId)}/position`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        position_x: position.x,
+        position_y: position.y,
+      }),
+    })
+    const payload = (await response.json()) as { success: boolean; error?: string }
+    if (!response.ok) {
+      return { success: false, error: payload.error || `Request failed (${response.status})` }
+    }
+    return payload
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to save position',
+    }
+  }
 }

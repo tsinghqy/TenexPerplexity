@@ -27,10 +27,30 @@ import {
   contextMessagesToChatMessages,
   retrieveLinearChatContext,
 } from '@/lib/rag/retriever'
-import type { Citation } from '@/lib/llm/citations'
+import { mergeContextMessages, retrieveAncestorPathContext } from '@/lib/rag/path-context'
+import { extractCitationsFromMarkdown, type Citation } from '@/lib/llm/citations'
 import type { ChatMessage } from '@/lib/llm/types'
 
 export const runtime = 'edge'
+
+function withPersistedSourceLinks(content: string, citations: Citation[]): string {
+  if (citations.length === 0) {
+    return content
+  }
+
+  const alreadyLinked = new Set(
+    extractCitationsFromMarkdown(content).map((citation) => citation.url)
+  )
+  const missing = citations.filter((citation) => !alreadyLinked.has(citation.url))
+  if (missing.length === 0) {
+    return content
+  }
+
+  const lines = missing.map(
+    (citation, index) => `${index + 1}. [${citation.title}](${citation.url})`
+  )
+  return `${content.trimEnd()}\n\nSources:\n${lines.join('\n')}`
+}
 
 async function authenticateRequestUser() {
   const supabase = await createClient()
@@ -149,12 +169,20 @@ export async function POST(request: Request) {
           })
         }
 
-        const contextMessages = await retrieveLinearChatContext(supabase, {
+        const linearContext = await retrieveLinearChatContext(supabase, {
           chatId: chatId!,
           userId: user.id,
           excludeNodeId: userNode.id,
           queryEmbedding: embedding,
         })
+
+        const ancestorContext = await retrieveAncestorPathContext(supabase, {
+          userId: user.id,
+          startParentId: parentId,
+          excludeNodeId: userNode.id,
+        })
+
+        const contextMessages = mergeContextMessages(ancestorContext, linearContext)
 
         const conversationMessages: ChatMessage[] = [
           ...contextMessagesToChatMessages(contextMessages),
@@ -182,16 +210,17 @@ export async function POST(request: Request) {
         })
 
         const citations = result.citations?.length ? result.citations : streamedCitations
+        const contentToPersist = withPersistedSourceLinks(result.content, citations)
         const assistantNode = await insertAssistantMessage(supabase, {
           chatId: chatId!,
           userId: user.id,
-          content: result.content,
+          content: contentToPersist,
           parentId: userNode.id,
         })
 
         enqueue(
           createCompleteEvent({
-            content: result.content,
+            content: contentToPersist,
             modelId,
             citations,
             chatId,

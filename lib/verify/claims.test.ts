@@ -59,6 +59,47 @@ describe('segmentClaims', () => {
     expect(claims).toHaveLength(1)
     expect(claims[0].text).toBe('This sentence is long enough to be a verifiable claim.')
   })
+
+  it('skips bold section titles and colon-ended list intros', () => {
+    const content = [
+      '**Software Compatibility:**',
+      'The main differences come down to the following factors:',
+      'Windows supports a wider range of third-party software than macOS.',
+    ].join('\n')
+
+    const claims = segmentClaims(content)
+
+    expect(claims).toHaveLength(1)
+    expect(claims[0].text).toBe(
+      'Windows supports a wider range of third-party software than macOS.'
+    )
+  })
+
+  it('does not turn trailing citation parentheticals into claims', () => {
+    const content =
+      '- **Windows:** More susceptible to malware due to its larger user base. ([tomsguide.com](https://www.tomsguide.com/features/windows-vs-macos-which-is-better-for-you?utm_source=openai))'
+
+    const claims = segmentClaims(content)
+
+    expect(claims).toHaveLength(1)
+    expect(claims[0].text).toBe(
+      '**Windows:** More susceptible to malware due to its larger user base.'
+    )
+    expect(content.slice(claims[0].startOffset, claims[0].endOffset)).toBe(claims[0].text)
+  })
+
+  it('skips meta/discourse sentences that assert nothing checkable', () => {
+    const content = [
+      "Here's a concise comparison of Windows and macOS for everyday users.",
+      'Let me know if you want a deeper dive into gaming performance.',
+      'Apple released macOS Sequoia in September 2024.',
+    ].join(' ')
+
+    const claims = segmentClaims(content)
+
+    expect(claims).toHaveLength(1)
+    expect(claims[0].text).toBe('Apple released macOS Sequoia in September 2024.')
+  })
 })
 
 describe('findSourcesFooterStart', () => {

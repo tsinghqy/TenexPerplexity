@@ -1,6 +1,12 @@
 /** @vitest-environment node */
 import { describe, expect, it } from 'vitest'
-import { findOpenGridPosition, layoutChats, GRAPH_NODE_WIDTH, GRAPH_NODE_HEIGHT } from '@/lib/graph/layout'
+import {
+  collectTreeChatIds,
+  findOpenGridPosition,
+  layoutChats,
+  GRAPH_NODE_WIDTH,
+  GRAPH_NODE_HEIGHT,
+} from '@/lib/graph/layout'
 import type { ChatSummary, GraphEdgeSummary } from '@/lib/api/chat'
 
 function chat(partial: Partial<ChatSummary> & Pick<ChatSummary, 'id'>): ChatSummary {
@@ -58,7 +64,7 @@ describe('graph layout', () => {
     expect(overlaps(positions.get('saved')!, positions.get('new')!)).toBe(false)
   })
 
-  it('prefers a free slot to the right of a branch parent', () => {
+  it('places branch children BELOW the parent (tree grows downward)', () => {
     const chats = [
       chat({ id: 'parent', position_x: 48, position_y: 48 }),
       chat({ id: 'child', created_at: '2026-01-02T00:00:00.000Z' }),
@@ -76,13 +82,63 @@ describe('graph layout', () => {
     const positions = layoutChats(chats, edges)
     const parent = positions.get('parent')!
     const child = positions.get('child')!
-    expect(child.x).toBeGreaterThan(parent.x)
+    expect(child.y).toBeGreaterThan(parent.y)
     expect(overlaps(parent, child)).toBe(false)
+  })
+
+  it('fans multiple children horizontally centered under the parent', () => {
+    const chats = [
+      chat({ id: 'parent', position_x: 600, position_y: 48 }),
+      chat({ id: 'child-a', created_at: '2026-01-02T00:00:00.000Z' }),
+      chat({ id: 'child-b', created_at: '2026-01-02T00:01:00.000Z' }),
+      chat({ id: 'child-c', created_at: '2026-01-02T00:02:00.000Z' }),
+    ]
+    const edges: GraphEdgeSummary[] = ['child-a', 'child-b', 'child-c'].map((id, index) => ({
+      id: `e${index}`,
+      sourceChatId: 'parent',
+      targetChatId: id,
+      sourceNodeId: 'n-parent',
+      targetNodeId: `n-${id}`,
+    }))
+
+    const positions = layoutChats(chats, edges)
+    const parent = positions.get('parent')!
+    const children = ['child-a', 'child-b', 'child-c'].map((id) => positions.get(id)!)
+
+    for (const child of children) {
+      expect(child.y).toBeGreaterThan(parent.y)
+    }
+    // Children are spread on both sides of the parent's x, not stacked in one column.
+    const xs = children.map((child) => child.x)
+    expect(Math.min(...xs)).toBeLessThan(parent.x)
+    expect(Math.max(...xs)).toBeGreaterThan(parent.x)
+    for (let i = 0; i < children.length; i += 1) {
+      for (let j = i + 1; j < children.length; j += 1) {
+        expect(overlaps(children[i], children[j])).toBe(false)
+      }
+    }
   })
 
   it('findOpenGridPosition skips occupied cells', () => {
     const first = findOpenGridPosition([])
     const second = findOpenGridPosition([first])
     expect(overlaps(first, second)).toBe(false)
+  })
+
+  it('collectTreeChatIds walks the whole fork tree from any member', () => {
+    const edges: GraphEdgeSummary[] = [
+      { id: 'e1', sourceChatId: 'root', targetChatId: 'b1', sourceNodeId: 'n1', targetNodeId: 'n2' },
+      { id: 'e2', sourceChatId: 'root', targetChatId: 'b2', sourceNodeId: 'n1', targetNodeId: 'n3' },
+      { id: 'e3', sourceChatId: 'b1', targetChatId: 'deep', sourceNodeId: 'n4', targetNodeId: 'n5' },
+      { id: 'e4', sourceChatId: 'other', targetChatId: 'other-child', sourceNodeId: 'n6', targetNodeId: 'n7' },
+    ]
+
+    // From a leaf, mid-tree, or root — same component, unrelated trees excluded.
+    for (const start of ['deep', 'b2', 'root']) {
+      const tree = collectTreeChatIds(start, edges)
+      expect(tree).toEqual(new Set(['root', 'b1', 'b2', 'deep']))
+    }
+
+    expect(collectTreeChatIds('solo', edges)).toEqual(new Set(['solo']))
   })
 })

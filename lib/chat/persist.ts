@@ -23,6 +23,7 @@ export interface PersistedChat {
   position_y?: number | null
   research_run_id?: string | null
   confidence?: number | null
+  summary?: string | null
   created_at: string
   updated_at: string
 }
@@ -234,7 +235,7 @@ export async function listChatsForUser(
   const { data, error } = await supabase
     .from('chats')
     .select(
-      'id, user_id, title, root_node_id, position_x, position_y, research_run_id, confidence, created_at, updated_at'
+      'id, user_id, title, root_node_id, position_x, position_y, research_run_id, confidence, summary, created_at, updated_at'
     )
     .eq('user_id', userId)
     .order('updated_at', { ascending: false })
@@ -243,9 +244,24 @@ export async function listChatsForUser(
     return data ?? []
   }
 
+  // Fallback for databases without the p10_research.sql migration (no
+  // chats.summary yet): keep the p8 research columns if possible.
+  console.error('[persist] listChatsForUser failed, retrying p8 columns:', error.message)
+  const { data: p8Data, error: p8Error } = await supabase
+    .from('chats')
+    .select(
+      'id, user_id, title, root_node_id, position_x, position_y, research_run_id, confidence, created_at, updated_at'
+    )
+    .eq('user_id', userId)
+    .order('updated_at', { ascending: false })
+
+  if (!p8Error) {
+    return p8Data ?? []
+  }
+
   // Fallback for databases without the p8_research.sql migration: never let a
   // missing column blank out the user's chat list.
-  console.error('[persist] listChatsForUser failed, retrying legacy columns:', error.message)
+  console.error('[persist] listChatsForUser failed, retrying legacy columns:', p8Error.message)
   const { data: legacyData, error: legacyError } = await supabase
     .from('chats')
     .select('id, user_id, title, root_node_id, position_x, position_y, created_at, updated_at')

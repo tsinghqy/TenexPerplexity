@@ -12,6 +12,7 @@ function branch(overrides: Partial<ResearchBranch>): ResearchBranch {
     parentNodeId: 'root',
     preview: '',
     confidence: null,
+    summary: null,
     assistantNodeId: 'node',
     error: null,
     ...overrides,

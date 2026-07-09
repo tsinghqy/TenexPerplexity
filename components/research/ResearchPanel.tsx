@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { ConfidenceChip, VerifiedContent } from '@/components/chat/ChatPanel'
 import { cn } from '@/lib/utils'
 import { hallucinationRate } from '@/lib/verify/score'
+import type { ResearchRunRecord } from '@/lib/api/research'
 import type {
   ResearchBranch,
   ResearchRunPhase,
@@ -75,27 +76,17 @@ function BranchConfidenceBar({ confidence }: { confidence: number }) {
 
 function BranchCard({
   branch,
-  isWinner,
   onOpen,
   onRetry,
 }: {
   branch: ResearchBranch
-  isWinner: boolean
   onOpen: () => void
   onRetry: () => void
 }) {
   return (
-    <div
-      className={cn(
-        'flex flex-col gap-2.5 rounded-2xl border bg-base-200 p-4 shadow-sm transition',
-        isWinner
-          ? 'border-warning/60 shadow-warning/10 ring-1 ring-warning/40'
-          : 'border-white/10'
-      )}
-    >
+    <div className="flex flex-col gap-2.5 rounded-2xl border border-white/10 bg-base-200 p-4 shadow-sm transition">
       <div className="flex items-start justify-between gap-2">
         <p className="text-sm font-semibold leading-snug text-base-content">
-          {isWinner ? '👑 ' : ''}
           {branch.depth > 1 ? '↳ ' : ''}
           {branch.subQuestion}
         </p>
@@ -113,7 +104,14 @@ function BranchCard({
         <p className="text-xs leading-relaxed text-muted-foreground">{branch.rationale}</p>
       ) : null}
 
-      {branch.preview ? (
+      {branch.summary ? (
+        <div className="rounded-xl border border-white/10 bg-base-300/50 px-3 py-2">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+            Branch synthesis
+          </p>
+          <p className="mt-1 text-xs leading-relaxed text-base-content">{branch.summary}</p>
+        </div>
+      ) : branch.preview ? (
         <p className="line-clamp-4 whitespace-pre-wrap text-xs leading-relaxed text-base-content/80">
           {branch.preview}
         </p>
@@ -151,9 +149,116 @@ function BranchCard({
   )
 }
 
+const RUN_STATUS_LABEL: Record<ResearchRunRecord['status'], string> = {
+  planning: 'In progress',
+  running: 'In progress',
+  scoring: 'In progress',
+  complete: 'Complete',
+  failed: 'Failed',
+  cancelled: 'Cancelled',
+}
+
+function runStatusTone(status: ResearchRunRecord['status']): string {
+  switch (status) {
+    case 'complete':
+      return 'text-success'
+    case 'failed':
+      return 'text-error'
+    case 'cancelled':
+      return 'text-muted-foreground'
+    default:
+      return 'text-primary'
+  }
+}
+
+function formatRunDate(createdAt: string): string {
+  const date = new Date(createdAt)
+  if (Number.isNaN(date.getTime())) {
+    return ''
+  }
+  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+}
+
+interface ResearchSidebarProps {
+  runs: ResearchRunRecord[]
+  activeRunId: string | null
+  isLoading: boolean
+  disabled?: boolean
+  onSelectRun: (runId: string) => void
+  onNewResearch: () => void
+}
+
+/** Left-hand history panel for the research tab: past runs, newest first. */
+export function ResearchSidebar({
+  runs,
+  activeRunId,
+  isLoading,
+  disabled,
+  onSelectRun,
+  onNewResearch,
+}: ResearchSidebarProps) {
+  return (
+    <aside className="flex h-full w-[280px] shrink-0 flex-col border-r border-white/10 bg-[var(--sidebar)]">
+      <div className="border-b border-white/10 p-3">
+        <Button
+          type="button"
+          className="w-full rounded-full bg-primary text-primary-content hover:brightness-110"
+          onClick={onNewResearch}
+          disabled={disabled}
+        >
+          New research
+        </Button>
+      </div>
+      <div className="flex-1 overflow-y-auto p-2">
+        {isLoading ? (
+          <p className="px-2 py-3 text-xs text-muted-foreground">Loading research…</p>
+        ) : runs.length === 0 ? (
+          <p className="px-2 py-3 text-xs leading-relaxed text-muted-foreground">
+            No research yet. Ask one big question and Tenexity will break it down for you.
+          </p>
+        ) : (
+          <ul className="space-y-1">
+            {runs.map((run) => (
+              <li key={run.id}>
+                <button
+                  type="button"
+                  disabled={disabled}
+                  onClick={() => onSelectRun(run.id)}
+                  className={cn(
+                    'w-full rounded-xl px-3 py-2.5 text-left text-sm transition',
+                    activeRunId === run.id
+                      ? 'bg-primary/15 font-medium text-base-content'
+                      : 'text-muted-foreground hover:bg-white/5 hover:text-base-content'
+                  )}
+                >
+                  <span className="line-clamp-2">{run.question}</span>
+                  <span className="mt-1 flex items-center gap-2 text-[11px]">
+                    <span className={cn('font-medium', runStatusTone(run.status))}>
+                      {RUN_STATUS_LABEL[run.status]}
+                    </span>
+                    {typeof run.overall_confidence === 'number' ? (
+                      <span className="text-muted-foreground">
+                        {Math.round(run.overall_confidence)}% grounded
+                      </span>
+                    ) : null}
+                    <span className="ml-auto text-muted-foreground">
+                      {formatRunDate(run.created_at)}
+                    </span>
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </aside>
+  )
+}
+
 interface ResearchPanelProps {
   run: ResearchRunState | null
   isRunning: boolean
+  isLoadingRun?: boolean
   onStart: (question: string) => void
   onCancel: () => void
   onRetryBranch: (chatId: string) => void
@@ -164,6 +269,7 @@ interface ResearchPanelProps {
 export function ResearchPanel({
   run,
   isRunning,
+  isLoadingRun,
   onStart,
   onCancel,
   onRetryBranch,
@@ -171,6 +277,14 @@ export function ResearchPanel({
   onOpenChat,
 }: ResearchPanelProps) {
   const [question, setQuestion] = useState('')
+
+  if (isLoadingRun) {
+    return (
+      <div className="flex flex-1 items-center justify-center px-6 text-sm text-muted-foreground">
+        Loading research…
+      </div>
+    )
+  }
 
   if (!run) {
     return (
@@ -182,7 +296,7 @@ export function ResearchPanel({
             </h2>
             <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
               Ask one question. Tenexity plans sub-questions, researches each as a live branch
-              with web sources, fact-checks every claim, and crowns the strongest path.
+              with web sources, and fact-checks every claim.
             </p>
           </div>
           <form
@@ -228,8 +342,24 @@ export function ResearchPanel({
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               Research question
             </p>
-            <h2 className="mt-1 text-lg font-semibold leading-snug text-base-content">
+            <h2
+              className={cn(
+                'group/question relative mt-1 text-lg font-semibold leading-snug text-base-content',
+                run.quickSummary && 'cursor-help'
+              )}
+            >
               {run.question}
+              {run.quickSummary ? (
+                <span className="pointer-events-none absolute left-0 top-full z-30 mt-1.5 hidden w-96 max-w-[85vw] whitespace-normal rounded-xl border border-white/15 bg-base-300 p-3 text-xs font-normal leading-relaxed text-base-content shadow-xl shadow-black/40 group-hover/question:block">
+                  <span className="mb-1 flex items-center gap-2">
+                    <span className="font-semibold text-success">Conclusion</span>
+                    {typeof run.overallConfidence === 'number' ? (
+                      <ConfidenceChip confidence={Math.round(run.overallConfidence)} />
+                    ) : null}
+                  </span>
+                  {run.quickSummary}
+                </span>
+              ) : null}
             </h2>
           </div>
           <div className="flex shrink-0 items-center gap-2">
@@ -304,7 +434,6 @@ export function ResearchPanel({
               <BranchCard
                 key={branch.chatId}
                 branch={branch}
-                isWinner={run.winningChatId === branch.chatId}
                 onOpen={() => onOpenChat(branch.chatId)}
                 onRetry={() => onRetryBranch(branch.chatId)}
               />

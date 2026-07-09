@@ -69,6 +69,17 @@ This creates `chats`, `nodes`, `node_links`, pgvector, and RLS policies.
 3. Click the chat → messages reload
 4. **New chat** → send again → second conversation is separate
 
+### P5 RAG migrations
+
+After P4 SQL is applied, run `supabase/migrations/p5_combined.sql` in the SQL Editor.
+
+### P5 RAG smoke test
+
+1. In one chat: “My project is called Aurora.”
+2. Follow up: “What’s my project called?”
+3. Answer should use the prior turn (server loads context from `nodes`, not only client history)
+4. In Table Editor → `nodes`, the user message row should have a non-null `embedding`
+
 ### P1 auth smoke test
 
 1. `npm run dev` → open http://localhost:3000 (should redirect to `/auth/signin`)

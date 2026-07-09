@@ -14,7 +14,9 @@ export interface FetchedSource {
 }
 
 const FETCH_TIMEOUT_MS = 5_000
-const MAX_RAW_HTML_CHARS = 400_000
+// Generous raw cap: modern article pages ship megabytes of script before the
+// body, and scripts are stripped before the readable-text cap is applied.
+const MAX_RAW_HTML_CHARS = 3_000_000
 /** Cap extracted text per source to keep verifier prompts bounded. */
 export const MAX_SOURCE_TEXT_CHARS = 12_000
 
@@ -35,7 +37,25 @@ function decodeBasicEntities(text: string): string {
     .replace(/&mdash;|&#8212;/gi, '\u2014')
 }
 
-/** Very small HTML → text extraction: drop non-content blocks, strip tags, collapse whitespace. */
+function stripTagsToText(fragment: string): string {
+  const withoutTags = fragment
+    .replace(/<(?:br|\/p|\/div|\/li|\/h[1-6]|\/tr)[^>]*>/gi, '\n')
+    .replace(/<[^>]+>/g, ' ')
+
+  return decodeBasicEntities(withoutTags)
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\s*\n\s*/g, '\n')
+    .trim()
+}
+
+/** Article body heuristic: paragraph/heading tags carry the claims; nav chrome doesn't. */
+const MIN_PARAGRAPH_TEXT_CHARS = 800
+
+/**
+ * HTML → text extraction. Prefers <article>/<main> and then paragraph/heading
+ * content so the verifier prompt starts with the article body instead of nav,
+ * cookie banners, and newsletter boilerplate. Falls back to a whole-page strip.
+ */
 export function extractReadableText(html: string): string {
   const withoutBlocks = html
     .slice(0, MAX_RAW_HTML_CHARS)
@@ -46,15 +66,23 @@ export function extractReadableText(html: string): string {
     .replace(/<head[\s\S]*?<\/head>/gi, ' ')
     .replace(/<!--[\s\S]*?-->/g, ' ')
 
-  const withoutTags = withoutBlocks
-    .replace(/<(?:br|\/p|\/div|\/li|\/h[1-6]|\/tr)[^>]*>/gi, '\n')
-    .replace(/<[^>]+>/g, ' ')
+  const containerMatch =
+    /<article[\s\S]*?<\/article>/i.exec(withoutBlocks) ||
+    /<main[\s\S]*?<\/main>/i.exec(withoutBlocks)
+  const scope = containerMatch ? containerMatch[0] : withoutBlocks
 
-  return decodeBasicEntities(withoutTags)
-    .replace(/[ \t]+/g, ' ')
-    .replace(/\s*\n\s*/g, '\n')
-    .trim()
-    .slice(0, MAX_SOURCE_TEXT_CHARS)
+  const paragraphs = scope.match(/<(p|h[1-6])\b[^>]*>[\s\S]*?<\/\1>/gi) || []
+  const paragraphText = paragraphs
+    .map((fragment) => stripTagsToText(fragment))
+    .filter((text) => text.length > 0)
+    .join('\n')
+
+  const text =
+    paragraphText.length >= MIN_PARAGRAPH_TEXT_CHARS
+      ? paragraphText
+      : stripTagsToText(withoutBlocks)
+
+  return text.slice(0, MAX_SOURCE_TEXT_CHARS)
 }
 
 async function fetchSingleSource(citation: Citation): Promise<FetchedSource> {

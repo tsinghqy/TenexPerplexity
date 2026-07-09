@@ -37,6 +37,10 @@ function isSkippableLine(trimmed: string): boolean {
   if (/^(#{1,6}\s|---+\s*$|\|.*\||```)/.test(trimmed)) {
     return true
   }
+  // Bold-only section titles like "**Software Compatibility:**".
+  if (/^\*{1,2}[^*]+\*{1,2}:?\s*$/.test(trimmed)) {
+    return true
+  }
   // Lines that are only a link or a numbered/bulleted link (source lists).
   if (/^(?:[-*+]|\d+[.)])?\s*\[[^\]]+\]\(https?:\/\/[^)]+\)\s*$/.test(trimmed)) {
     return true
@@ -45,6 +49,31 @@ function isSkippableLine(trimmed: string): boolean {
     return true
   }
   return false
+}
+
+/** Discourse/meta sentences that assert nothing checkable. */
+const META_SENTENCE_PATTERN =
+  /^(here(?:'|’)s|here is|here are|below (?:is|are)|the following|let(?:'|’)s|in (?:summary|short|conclusion)|to summarize|to sum up|i (?:hope|can|will|'ll)|feel free|let me know|as (?:an ai|always)|this (?:comparison|guide|overview|answer|breakdown))\b/i
+
+function isMetaOrHeadingSpan(text: string): boolean {
+  // Sentences that introduce a list or section end with a colon.
+  if (text.endsWith(':')) {
+    return true
+  }
+  return META_SENTENCE_PATTERN.test(text)
+}
+
+/**
+ * Citation-only spans: sentence splitting leaves trailing parentheticals like
+ * "([tomsguide.com](https://...))" as their own span. Links assert nothing,
+ * so they must not become claims (they'd always judge as unsupported).
+ */
+function isCitationOnlySpan(text: string): boolean {
+  const withoutLinks = text
+    .replace(/\[[^\]]*\]\(https?:\/\/[^)\s]+\)/g, ' ')
+    .replace(/https?:\/\/\S+/g, ' ')
+  const letters = withoutLinks.replace(/[^a-zA-Z]/g, '')
+  return letters.length < 3
 }
 
 function stripListMarker(line: string): { text: string; offsetDelta: number } {
@@ -63,6 +92,9 @@ function pushTrimmedSpan(
   const leading = raw.length - raw.trimStart().length
   const text = raw.trim()
   if (text.length < CLAIM_MIN_LENGTH || !/[a-zA-Z]/.test(text)) {
+    return
+  }
+  if (isMetaOrHeadingSpan(text) || isCitationOnlySpan(text)) {
     return
   }
   const startOffset = rawStart + leading

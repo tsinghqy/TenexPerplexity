@@ -1,4 +1,4 @@
-import type { Citation } from '@/lib/llm/citations'
+import { extractCitationsFromMarkdown, type Citation } from '@/lib/llm/citations'
 import type { ClaimVerdict } from '@/lib/supabase/database.types'
 import { createJsonCompletion } from '@/lib/llm/json-completion'
 import { segmentClaims, type ClaimSpan } from '@/lib/verify/claims'
@@ -50,6 +50,58 @@ function parseVerdict(value: unknown): ClaimVerdict {
   return value === 'supported' || value === 'partial' || value === 'unsupported'
     ? value
     : 'unsupported'
+}
+
+/**
+ * Order citations so URLs that claims inline-cite are fetched first.
+ * With a per-verify source cap, a claim's own citation must never be the
+ * one that misses the cut.
+ */
+export function prioritizeCitationsForClaims(
+  citations: Citation[],
+  spans: ClaimSpan[]
+): Citation[] {
+  const inlineUrls = new Set(
+    spans.flatMap((span) => extractCitationsFromMarkdown(span.text).map((c) => c.url))
+  )
+  const inlineCited = citations.filter((citation) => inlineUrls.has(citation.url))
+  const rest = citations.filter((citation) => !inlineUrls.has(citation.url))
+  return [...inlineCited, ...rest]
+}
+
+/**
+ * Honesty pass: a claim that inline-cites a source we could not actually read
+ * must not be marked "unsupported" (red). Downgrade to "partial" and point the
+ * tooltip at the unread source instead.
+ */
+export function reconcileUnreadInlineSources(
+  claims: VerifiedClaim[],
+  sources: FetchedSource[]
+): VerifiedClaim[] {
+  const fetchedUrls = new Set(
+    sources.filter((source) => source.fetched).map((source) => source.url)
+  )
+
+  return claims.map((claim) => {
+    if (claim.verdict !== 'unsupported') {
+      return claim
+    }
+
+    const inlineCitations = extractCitationsFromMarkdown(claim.text)
+    const unread = inlineCitations.find((citation) => !fetchedUrls.has(citation.url))
+    if (!unread) {
+      return claim
+    }
+
+    return {
+      ...claim,
+      verdict: 'partial' as ClaimVerdict,
+      confidence: Math.max(claim.confidence, 0.3),
+      sourceUrl: unread.url,
+      sourceTitle: unread.title,
+      sourceQuote: null,
+    }
+  })
 }
 
 function buildVerifierPrompt(claims: ClaimSpan[], sources: FetchedSource[]): string {
@@ -167,7 +219,7 @@ export async function verifyAnswer(params: {
     }
   }
 
-  const sources = await fetchSourceTexts(params.citations)
+  const sources = await fetchSourceTexts(prioritizeCitationsForClaims(params.citations, spans))
   const anySourceFetched = sources.some((source) => source.fetched)
 
   const response = await createJsonCompletion({
@@ -180,7 +232,10 @@ export async function verifyAnswer(params: {
   const rawClaims = Array.isArray(response.claims)
     ? (response.claims as RawClaimVerdict[])
     : []
-  const claims = applyRawVerdicts(spans, rawClaims, sources, anySourceFetched)
+  const claims = reconcileUnreadInlineSources(
+    applyRawVerdicts(spans, rawClaims, sources, anySourceFetched),
+    sources
+  )
 
   return {
     claims,

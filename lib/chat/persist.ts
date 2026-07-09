@@ -239,12 +239,25 @@ export async function listChatsForUser(
     .eq('user_id', userId)
     .order('updated_at', { ascending: false })
 
-  if (error) {
-    console.error('[persist] listChatsForUser failed:', error.message)
+  if (!error) {
+    return data ?? []
+  }
+
+  // Fallback for databases without the p8_research.sql migration: never let a
+  // missing column blank out the user's chat list.
+  console.error('[persist] listChatsForUser failed, retrying legacy columns:', error.message)
+  const { data: legacyData, error: legacyError } = await supabase
+    .from('chats')
+    .select('id, user_id, title, root_node_id, position_x, position_y, created_at, updated_at')
+    .eq('user_id', userId)
+    .order('updated_at', { ascending: false })
+
+  if (legacyError) {
+    console.error('[persist] listChatsForUser legacy retry failed:', legacyError.message)
     return []
   }
 
-  return data ?? []
+  return legacyData ?? []
 }
 
 export async function getChatWithMessages(

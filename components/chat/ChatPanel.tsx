@@ -80,13 +80,17 @@ function ClaimTooltip({ claim }: { claim: NodeClaim }) {
         <span className="mt-1 block border-l-2 border-white/20 pl-2 italic text-muted-foreground">
           “{claim.source_quote}”
         </span>
+      ) : claim.verdict === 'partial' && claim.source_url ? (
+        <span className="mt-1 block text-muted-foreground">
+          The cited page couldn’t be read to confirm this claim.
+        </span>
       ) : null}
     </span>
   )
 }
 
 /** Lie-detector overlay: message text with verdict-tinted claim spans + hover source tooltips. */
-function VerifiedContent({ content, claims }: { content: string; claims: NodeClaim[] }) {
+export function VerifiedContent({ content, claims }: { content: string; claims: NodeClaim[] }) {
   const segments = buildClaimSegments(content, claims)
 
   return (

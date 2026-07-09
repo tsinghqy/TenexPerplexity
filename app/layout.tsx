@@ -5,14 +5,28 @@ import { AuthProvider } from "@/context/AuthContext"
 // Auth + session cookies require a request; skip static prerender without env.
 export const dynamic = "force-dynamic"
 
+function normalizeSiteUrl(raw: string | undefined): string | null {
+  if (!raw?.trim()) {
+    return null
+  }
+
+  const trimmed = raw.trim().replace(/\/$/, "")
+  const withProtocol = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`
+
+  try {
+    return new URL(withProtocol).origin
+  } catch {
+    return null
+  }
+}
+
 const getSiteUrl = (): string => {
-  if (process.env.NEXT_PUBLIC_SITE_URL) {
-    return process.env.NEXT_PUBLIC_SITE_URL
-  }
-  if (process.env.NEXT_PUBLIC_APP_URL) {
-    return process.env.NEXT_PUBLIC_APP_URL
-  }
-  return "http://localhost:3000"
+  return (
+    normalizeSiteUrl(process.env.NEXT_PUBLIC_SITE_URL) ||
+    normalizeSiteUrl(process.env.NEXT_PUBLIC_APP_URL) ||
+    normalizeSiteUrl(process.env.VERCEL_URL) ||
+    "http://localhost:3000"
+  )
 }
 
 const siteUrl = getSiteUrl()

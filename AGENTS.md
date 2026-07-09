@@ -1,6 +1,8 @@
-# TenexPerplexity - Essential Context
+# Tenexity - Essential Context
 
 **What**: Streaming answer engine with live web search, citations, and forkable research branches (path-scoped RAG).
+**Product name (UI)**: Tenexity
+**Repo / package**: TenexPerplexity / `tenexperplexity`
 **Stack**: Next.js 15 + React 19 + Supabase (PostgreSQL+pgvector) + React Flow + OpenAI / OpenRouter
 
 ---

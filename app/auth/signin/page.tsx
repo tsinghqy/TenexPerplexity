@@ -68,7 +68,7 @@ function SignInForm() {
 
   return (
     <AuthFormLayout
-      title="Welcome to TenexPerplexity"
+      title="Welcome to Tenexity"
       description="Sign in to your account"
       icon={<Search className="h-8 w-8 text-primary" />}
     >

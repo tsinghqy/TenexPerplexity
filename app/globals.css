@@ -1,7 +1,7 @@
 @import "tailwindcss";
 @plugin "daisyui";
 @plugin "daisyui/theme" {
-  name: "graphchat-dark";
+  name: "tenexity-dark";
   default: true;
   prefersdark: true;
   color-scheme: dark;
@@ -143,7 +143,7 @@
   }
 }
 
-@keyframes graphchat-loading-bar {
+@keyframes tenexity-loading-bar {
   0% {
     transform: translateX(-100%);
   }

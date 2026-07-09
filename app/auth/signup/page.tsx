@@ -92,7 +92,7 @@ function SignUpForm() {
   return (
     <AuthFormLayout
       title="Create an account"
-      description="Sign up to get started with TenexPerplexity"
+      description="Sign up to get started with Tenexity"
       icon={<Search className="h-8 w-8 text-primary" />}
     >
       <form onSubmit={handleSubmit} className="space-y-4">

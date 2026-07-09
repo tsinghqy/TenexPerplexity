@@ -29,8 +29,8 @@ export const viewport: Viewport = {
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   title: {
-    default: "TenexPerplexity — Search with branching research",
-    template: "%s | TenexPerplexity",
+    default: "Tenexity — Search with branching research",
+    template: "%s | Tenexity",
   },
   description:
     "A streaming answer engine with live web search and citations. Fork follow-ups into isolated research branches with path-scoped RAG.",
@@ -42,15 +42,15 @@ export const metadata: Metadata = {
     "research branching",
     "RAG",
   ],
-  authors: [{ name: "TenexPerplexity" }],
-  creator: "TenexPerplexity",
-  publisher: "TenexPerplexity",
+  authors: [{ name: "Tenexity" }],
+  creator: "Tenexity",
+  publisher: "Tenexity",
   openGraph: {
     type: "website",
     locale: "en_US",
     url: siteUrl,
-    siteName: "TenexPerplexity",
-    title: "TenexPerplexity — Search with branching research",
+    siteName: "Tenexity",
+    title: "Tenexity — Search with branching research",
     description:
       "Streaming answers with live web search, citations, and forkable research branches.",
     images: [
@@ -58,13 +58,13 @@ export const metadata: Metadata = {
         url: "/og-image.png",
         width: 1200,
         height: 630,
-        alt: "TenexPerplexity",
+        alt: "Tenexity",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "TenexPerplexity — Search with branching research",
+    title: "Tenexity — Search with branching research",
     description:
       "Streaming answers with live web search, citations, and forkable research branches.",
     images: ["/og-image.png"],
@@ -84,7 +84,7 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en" data-theme="graphchat-dark">
+    <html lang="en" data-theme="tenexity-dark">
       <body className="min-h-screen bg-background text-foreground font-sans antialiased">
         <AuthProvider>{children}</AuthProvider>
       </body>

@@ -1,76 +1,106 @@
 'use client'
 
+import { useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { ErrorMessage } from '@/components/ui/error-message'
-import { LoadingSpinner } from '@/components/ui/loading-spinner'
+import { ChatComposer, ChatMessageList } from '@/components/chat/ChatPanel'
 import { useAuth } from '@/context/AuthContext'
+import { useStreamingChat } from '@/lib/hooks/useStreamingChat'
+import { getChatModels } from '@/lib/llm/models'
 
 export default function HomePage() {
-  const { user, loading, signOut, configError } = useAuth()
+  const { user, loading: isAuthLoading, signOut, configError } = useAuth()
+  const {
+    messages,
+    isStreaming,
+    errorMessage,
+    selectedModelId,
+    setSelectedModelId,
+    sendMessage,
+    stopStreaming,
+    clearMessages,
+  } = useStreamingChat()
+  const [draftMessage, setDraftMessage] = useState('')
+  const availableModels = getChatModels()
 
-  if (loading) {
-    return <LoadingSpinner fullScreen />
-  }
-
-  if (configError) {
+  if (isAuthLoading) {
     return (
-      <main className="min-h-screen flex items-center justify-center px-6 py-16">
-        <Card className="w-full max-w-lg">
-          <CardHeader>
-            <CardTitle>Supabase not configured</CardTitle>
-            <CardDescription>
-              Create <code className="text-xs">.env.local</code> from{' '}
-              <code className="text-xs">.env.example</code> and restart the dev server.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ErrorMessage message={configError} />
-          </CardContent>
-        </Card>
+      <main className="flex min-h-screen items-center justify-center text-sm text-muted-foreground">
+        Loading…
       </main>
     )
   }
 
-  return (
-    <main className="min-h-screen flex flex-col items-center justify-center px-6 py-16">
-      <div className="w-full max-w-2xl space-y-8">
-        <div className="space-y-3 text-center">
-          <p className="text-sm uppercase tracking-[0.2em] text-muted-foreground">
-            Phase 1 auth
-          </p>
-          <h1 className="text-4xl font-semibold tracking-tight sm:text-5xl">
-            TenexPerplexity
-          </h1>
-          <p className="text-lg text-muted-foreground">
-            You&apos;re signed in. Chat, web search, and graph branching land in later phases.
-          </p>
+  if (configError) {
+    return (
+      <main className="flex min-h-screen items-center justify-center px-6">
+        <div className="w-full max-w-lg">
+          <ErrorMessage message={configError} />
         </div>
+      </main>
+    )
+  }
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Signed in</CardTitle>
-            <CardDescription>
-              Protected home route — middleware redirects unauthenticated users to sign in.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <p className="text-sm text-muted-foreground break-all">
-              {user?.email ?? 'No email on session'}
-            </p>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={async () => {
-                await signOut()
-                window.location.href = '/auth/signin'
-              }}
-            >
-              Sign out
-            </Button>
-          </CardContent>
-        </Card>
+  const handleSubmit = async () => {
+    const content = draftMessage
+    setDraftMessage('')
+    await sendMessage(content)
+  }
+
+  return (
+    <main className="flex h-screen flex-col bg-base-100">
+      <header className="flex items-center justify-between gap-3 border-b border-white/10 px-4 py-3">
+        <div>
+          <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Phase 2</p>
+          <h1 className="text-lg font-semibold">Tenexity</h1>
+        </div>
+        <div className="flex items-center gap-2">
+          <select
+            className="min-h-[44px] rounded-lg border border-white/10 bg-base-200 px-3 text-sm"
+            value={selectedModelId}
+            onChange={(event) => setSelectedModelId(event.target.value)}
+            disabled={isStreaming}
+            aria-label="Model"
+          >
+            {availableModels.map((model) => (
+              <option key={model.id} value={model.id}>
+                {model.name}
+              </option>
+            ))}
+          </select>
+          <Button type="button" variant="ghost" onClick={clearMessages} disabled={isStreaming}>
+            Clear
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={async () => {
+              await signOut()
+              window.location.href = '/auth/signin'
+            }}
+          >
+            Sign out
+          </Button>
+        </div>
+      </header>
+
+      <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col overflow-hidden">
+        <p className="px-4 pt-3 text-xs text-muted-foreground">{user?.email}</p>
+        {errorMessage ? (
+          <div className="px-4 pt-3">
+            <ErrorMessage message={errorMessage} />
+          </div>
+        ) : null}
+        <ChatMessageList messages={messages} />
       </div>
+
+      <ChatComposer
+        value={draftMessage}
+        isStreaming={isStreaming}
+        onChange={setDraftMessage}
+        onSubmit={handleSubmit}
+        onStop={stopStreaming}
+      />
     </main>
   )
 }

@@ -4,13 +4,22 @@ import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { ErrorMessage } from '@/components/ui/error-message'
 import { ChatComposer, ChatMessageList, ChatSidebar } from '@/components/chat/ChatPanel'
-import { ExploreCanvas } from '@/components/graph/ExploreCanvas'
+import { ExploreCanvas, type ExploreFocusRequest } from '@/components/graph/ExploreCanvas'
+import { ResearchPanel } from '@/components/research/ResearchPanel'
 import { useAuth } from '@/context/AuthContext'
+import { verifyNode } from '@/lib/api/verify'
+import { useResearchRun } from '@/lib/hooks/useResearchRun'
 import { useStreamingChat } from '@/lib/hooks/useStreamingChat'
 import { getChatModels } from '@/lib/llm/models'
 import { cn } from '@/lib/utils'
 
-type WorkspaceView = 'chat' | 'explore'
+type WorkspaceView = 'chat' | 'research' | 'explore'
+
+const WORKSPACE_VIEWS: Array<{ id: WorkspaceView; label: string }> = [
+  { id: 'chat', label: 'Chat' },
+  { id: 'research', label: 'Research' },
+  { id: 'explore', label: 'Explore' },
+]
 
 export default function HomePage() {
   const { user, loading: isAuthLoading, signOut, configError } = useAuth()
@@ -34,11 +43,36 @@ export default function HomePage() {
     startNewChat,
     branchFromMessage,
     verifyMessage,
+    refreshChats,
   } = useStreamingChat()
   const [draftMessage, setDraftMessage] = useState('')
   const [workspaceView, setWorkspaceView] = useState<WorkspaceView>('chat')
   const [explorePanelOpen, setExplorePanelOpen] = useState(false)
+  const [exploreFocus, setExploreFocus] = useState<ExploreFocusRequest | null>(null)
   const availableModels = getChatModels()
+
+  const focusTreeInExplore = (chatId: string) => {
+    setExploreFocus({ chatId, token: Date.now() })
+  }
+
+  const {
+    run: researchRun,
+    isRunning: isResearchRunning,
+    startResearch,
+    cancelResearch,
+    retryBranch,
+    resetResearch,
+  } = useResearchRun({
+    modelId: selectedModelId,
+    onGraphChanged: () => {
+      void refreshChats()
+    },
+    // Research mode fact-checks every branch automatically (no Verify click).
+    verifyBranch: async (assistantNodeId) => {
+      const result = await verifyNode(assistantNodeId)
+      return result.success ? (result.confidence ?? null) : null
+    },
+  })
 
   if (isAuthLoading) {
     return (
@@ -69,6 +103,13 @@ export default function HomePage() {
     await selectChat(chatId)
   }
 
+  const openResearchChat = async (chatId: string) => {
+    setWorkspaceView('explore')
+    setExplorePanelOpen(true)
+    focusTreeInExplore(chatId)
+    await selectChat(chatId)
+  }
+
   const handleBranch = async (nodeId: string) => {
     await branchFromMessage(nodeId)
     setWorkspaceView('explore')
@@ -95,30 +136,21 @@ export default function HomePage() {
 
         <div className="flex items-center gap-2">
           <div className="flex rounded-full bg-base-300/60 p-1">
-            <button
-              type="button"
-              className={cn(
-                'min-h-[36px] rounded-full px-4 text-sm font-medium transition',
-                workspaceView === 'chat'
-                  ? 'bg-base-100 text-base-content shadow-sm'
-                  : 'text-muted-foreground hover:text-base-content'
-              )}
-              onClick={() => setWorkspaceView('chat')}
-            >
-              Chat
-            </button>
-            <button
-              type="button"
-              className={cn(
-                'min-h-[36px] rounded-full px-4 text-sm font-medium transition',
-                workspaceView === 'explore'
-                  ? 'bg-base-100 text-base-content shadow-sm'
-                  : 'text-muted-foreground hover:text-base-content'
-              )}
-              onClick={() => setWorkspaceView('explore')}
-            >
-              Explore
-            </button>
+            {WORKSPACE_VIEWS.map((view) => (
+              <button
+                key={view.id}
+                type="button"
+                className={cn(
+                  'min-h-[36px] rounded-full px-4 text-sm font-medium transition',
+                  workspaceView === view.id
+                    ? 'bg-base-100 text-base-content shadow-sm'
+                    : 'text-muted-foreground hover:text-base-content'
+                )}
+                onClick={() => setWorkspaceView(view.id)}
+              >
+                {view.label}
+              </button>
+            ))}
           </div>
 
           <select
@@ -174,6 +206,7 @@ export default function HomePage() {
                       onClick={() => {
                         setWorkspaceView('explore')
                         setExplorePanelOpen(true)
+                        focusTreeInExplore(activeChatId)
                       }}
                     >
                       View on map
@@ -214,6 +247,24 @@ export default function HomePage() {
               />
             </div>
           </>
+        ) : workspaceView === 'research' ? (
+          <ResearchPanel
+            run={researchRun}
+            isRunning={isResearchRunning}
+            onStart={(question) => {
+              void startResearch(question)
+            }}
+            onCancel={() => {
+              void cancelResearch()
+            }}
+            onRetryBranch={(chatId) => {
+              void retryBranch(chatId)
+            }}
+            onReset={resetResearch}
+            onOpenChat={(chatId) => {
+              void openResearchChat(chatId)
+            }}
+          />
         ) : (
           <div className="relative flex min-w-0 flex-1">
             <div className="min-w-0 flex-1">
@@ -222,6 +273,7 @@ export default function HomePage() {
                 edges={edges}
                 activeChatId={activeChatId}
                 panelOpen={explorePanelOpen}
+                focusRequest={exploreFocus}
                 onOpenChat={(chatId) => {
                   void openChatInExplore(chatId)
                 }}

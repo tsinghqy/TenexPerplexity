@@ -68,18 +68,56 @@ export function findOpenGridPosition(occupied: GraphPoint[]): GraphPoint {
   }
 }
 
-function preferredBranchPosition(
+/**
+ * Tree placement: children sit one row BELOW their parent, fanned out
+ * horizontally and centered under it, so fork arrows read top-down.
+ */
+export function preferredBranchPosition(
   parentPosition: GraphPoint | undefined,
-  siblingIndex: number
+  siblingIndex: number,
+  siblingCount = 1
 ): GraphPoint {
   if (!parentPosition) {
     return findOpenGridPosition([])
   }
 
+  const offsetFromCenter = siblingIndex - (Math.max(siblingCount, 1) - 1) / 2
   return {
-    x: parentPosition.x + COLUMN_STRIDE,
-    y: parentPosition.y + siblingIndex * ROW_STRIDE,
+    x: parentPosition.x + offsetFromCenter * COLUMN_STRIDE,
+    y: parentPosition.y + ROW_STRIDE,
   }
+}
+
+/**
+ * All chat ids in the same fork tree as the given chat (connected component
+ * over fork edges, walked in both directions). Used to zoom Explore onto one
+ * research tree instead of the whole canvas.
+ */
+export function collectTreeChatIds(chatId: string, edges: GraphEdgeSummary[]): Set<string> {
+  const adjacency = new Map<string, string[]>()
+  for (const edge of edges) {
+    const fromList = adjacency.get(edge.sourceChatId) || []
+    fromList.push(edge.targetChatId)
+    adjacency.set(edge.sourceChatId, fromList)
+
+    const toList = adjacency.get(edge.targetChatId) || []
+    toList.push(edge.sourceChatId)
+    adjacency.set(edge.targetChatId, toList)
+  }
+
+  const visited = new Set<string>([chatId])
+  const queue = [chatId]
+  while (queue.length > 0) {
+    const current = queue.shift()!
+    for (const neighbor of adjacency.get(current) || []) {
+      if (!visited.has(neighbor)) {
+        visited.add(neighbor)
+        queue.push(neighbor)
+      }
+    }
+  }
+
+  return visited
 }
 
 /**
@@ -130,7 +168,11 @@ export function layoutChats(
     if (parentId) {
       const siblings = childrenByParent.get(parentId) || []
       const siblingIndex = Math.max(0, siblings.indexOf(chat.id))
-      const preferred = preferredBranchPosition(positions.get(parentId), siblingIndex)
+      const preferred = preferredBranchPosition(
+        positions.get(parentId),
+        siblingIndex,
+        siblings.length
+      )
       if (isFree(preferred, occupied)) {
         candidate = preferred
       }

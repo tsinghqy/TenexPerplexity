@@ -1,0 +1,166 @@
+---
+description: TenexPerplexity memory-bank rules
+alwaysApply: true
+---
+
+# Memory Bank Documentation
+
+Guidelines for creating and maintaining project documentation in the memory bank.
+
+## CRITICAL: Always Read and Update Memory Bank
+
+**BEFORE making any changes, you MUST:**
+
+1. **READ Core Development Principles** - Start with `/memory-bank/core-development-principles.md` - These are NON-NEGOTIABLE:
+   - **No duplicate or redundant logic** - Extract shared functionality
+   - **No code that's easy to break** - Use types, abstractions, clear contracts
+   - **MOST IMPORTANTLY: Ensure no functionality breaks** - All changes must preserve existing behavior
+2. **READ the relevant memory bank documentation** - Check `/memory-bank/README.md` for the index, then read relevant files
+3. **Understand existing patterns** - Don't reinvent solutions that are already documented
+4. **Follow established patterns** - Use documented approaches and utilities
+5. **Update documentation** - If you change existing features, update the corresponding memory bank file
+
+**The memory bank is a living document - it must be kept current with the codebase.**
+
+## When to Document
+
+**ALWAYS create or update memory bank documentation when:**
+
+- A new feature is developed or significantly updated
+- Architecture decisions are made (database schema changes, API design, system integrations)
+- Complex technical implementations are completed (RAG systems, authentication flows, data processing)
+- Bug fixes that reveal important architectural insights
+- Performance optimizations or scalability improvements
+- Integration with external services or APIs
+- **Any change that affects documented patterns or systems**
+
+**Documentation should be created IMMEDIATELY after feature completion**, not as an afterthought.
+
+## Where to Document
+
+- **Location**: All documentation goes in `/memory-bank/` folder at the project root
+- **Format**: Markdown files (`.md`)
+- **Naming**: Use descriptive, kebab-case names: `rag-architecture.md`, `authentication-flow.md`, `context-persistence-fix.md`
+
+## What to Document
+
+Each feature/architecture document should include:
+
+1. **Overview**: What is this feature/system? What problem does it solve?
+2. **Architecture**: High-level design, system components, data flow
+3. **Design Decisions**: Why certain approaches were chosen, trade-offs considered
+4. **Technical Implementation**: Key code patterns, database schema, API contracts
+5. **File Structure**: Which files are involved and their responsibilities
+6. **Dependencies**: External services, libraries, or systems this feature depends on
+7. **Known Limitations**: Current constraints, edge cases, future improvements needed
+8. **Testing Considerations**: How to test this feature, what scenarios to cover
+
+## Documentation Template
+
+When creating new documentation, use this structure:
+
+```markdown
+# [Feature/System Name]
+
+## Overview
+
+[Brief description of what this is and why it exists]
+
+## Architecture
+
+[High-level design, components, data flow diagrams if helpful]
+
+## Design Decisions
+
+[Why certain approaches were chosen, alternatives considered]
+
+## Technical Implementation
+
+[Key implementation details, code patterns, database schema]
+
+### Key Files
+
+- `path/to/file.ts` - [Purpose]
+- `path/to/file.ts` - [Purpose]
+
+### Database Schema
+
+[If applicable - table structures, relationships, indexes]
+
+### API Contracts
+
+[If applicable - endpoints, request/response formats]
+
+## Dependencies
+
+[External services, libraries, systems this depends on]
+
+## Known Limitations
+
+[Current constraints, edge cases, future improvements]
+
+## Testing
+
+[How to test, test scenarios, debugging tips]
+```
+
+## Memory Bank Organization
+
+- **Feature-specific docs**: One file per major feature/system (e.g., `rag-architecture.md`, `authentication-system.md`)
+- **Fix summaries**: Document significant bug fixes with context (e.g., `context-persistence-fix.md`)
+- **Architecture decisions**: Document important architectural choices (e.g., `database-design-decisions.md`)
+- **Integration guides**: Document how external services are integrated (e.g., `supabase-integration.md`)
+
+## Updating Existing Documentation
+
+- **When updating a feature**: Update the corresponding memory bank file
+- **Add a "Changelog" section** at the bottom for tracking updates
+- **Keep historical context**: Don't delete old information, mark it as "Previous Implementation" if replaced
+
+## AI Assistant Instructions
+
+**BEFORE starting any task:**
+
+1. **READ Core Development Principles FIRST** - `/memory-bank/core-development-principles.md` - These principles are MANDATORY:
+   - No duplicate/redundant logic - extract shared functionality
+   - No code that's easy to break - use types, abstractions, clear contracts
+   - **MOST IMPORTANTLY: Ensure no functionality breaks** - preserve existing behavior
+2. **READ the memory bank** - Check `/memory-bank/README.md` for relevant documentation
+3. **Understand existing patterns** - Review documented approaches, utilities, and design decisions
+4. **Use existing utilities** - Don't duplicate code that's already documented (e.g., use `getNodeDimensions()` from `graph-viewport.ts`, not hardcoded dimensions)
+5. **Follow established patterns** - If a pattern exists (e.g., mobile responsiveness, viewport calculations), use it
+6. **Verify no functionality breaks** - Test existing features after changes
+
+**When completing a feature or significant update:**
+
+1. **Identify if documentation is needed** - Is this a new feature, major update, or architectural change?
+2. **Check existing memory bank** - Is there already a file for this feature/system?
+3. **Read existing documentation first** - Understand what's already documented before making changes
+4. **Create or update documentation**:
+   - If new: Create a new file in `/memory-bank/` using the template above
+   - If existing: Update the file, add changelog entry
+5. **Include code references** - Use code references (```startLine:endLine:filepath) to link to actual implementation
+6. **Be thorough** - Future developers (and AI assistants) should be able to understand the system from this documentation alone
+7. **Update the index** - Update `/memory-bank/README.md` if adding new documentation
+
+**Example workflow:**
+
+- User: "Implement RAG context retrieval"
+- AI: [Reads `/memory-bank/rag-architecture.md` if it exists]
+- AI: [Implements feature using documented patterns]
+- AI: [Creates or updates `/memory-bank/rag-architecture.md` with full documentation]
+- AI: [Updates `/memory-bank/README.md` index]
+
+**Example workflow for updates:**
+
+- User: "Make sidebar responsive"
+- AI: [Reads `/memory-bank/mobile-responsiveness.md` to understand existing patterns]
+- AI: [Uses documented utilities like `useIsMobile()` and responsive dimension system]
+- AI: [Updates `/memory-bank/mobile-responsiveness.md` with new changes]
+- AI: [Adds changelog entry]
+
+## Memory Bank Index
+
+The `/memory-bank/README.md` file serves as an index. Update it when adding new documentation files.
+
+

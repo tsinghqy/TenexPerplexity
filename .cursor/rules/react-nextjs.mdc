@@ -1,0 +1,138 @@
+---
+description: TenexPerplexity react-nextjs rules
+alwaysApply: true
+---
+
+# React/Next.js Guidelines
+
+Guidelines for React components, hooks, API routes, and mobile responsiveness.
+
+## Components
+
+- **Use descriptive component names**: `UserProfileCard` not `Card`, `ChatMessageBubble` not `Bubble`
+- **Extract props interfaces** with descriptive names: `ChatInputProps`, `UserProfileCardProps`
+- **Keep components focused** - if a component exceeds 200 lines, consider splitting it
+- **Use composition** - prefer children props and render props over prop drilling
+- **Extract complex logic** into custom hooks
+- **Use meaningful prop names**: `onMessageSend` not `onClick`, `isLoading` not `loading`
+
+### Examples
+
+```typescript
+// ✅ Good: Descriptive component and props
+interface ChatMessageBubbleProps {
+  messageContent: string;
+  senderName: string;
+  timestamp: Date;
+  onMessageEdit: (messageId: string) => void;
+}
+
+export function ChatMessageBubble({
+  messageContent,
+  senderName,
+  timestamp,
+  onMessageEdit,
+}: ChatMessageBubbleProps) {
+  // ...
+}
+
+// ❌ Bad: Generic names
+interface Props {
+  msg: string;
+  name: string;
+  time: Date;
+  onClick: (id: string) => void;
+}
+
+export function Bubble(props: Props) {
+  // ...
+}
+```
+
+## Hooks
+
+- **Name hooks with `use` prefix**: `useUserAuthentication`, `useChatMessages`
+- **Return descriptive objects** from hooks: `{ user, isLoading, error }` not `{ data, loading, err }`
+- **Extract hook logic** when it's reused or complex
+- **Keep hooks focused** on a single concern
+
+### Examples
+
+```typescript
+// ✅ Good: Extracted reusable hook with descriptive return
+function useChatMessages(chatId: string) {
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchChatMessages(chatId)
+      .then(setMessages)
+      .catch((err) => setError(err.message))
+      .finally(() => setIsLoading(false));
+  }, [chatId]);
+
+  return { messages, isLoading, error };
+}
+
+// ❌ Bad: Logic duplicated in component, vague return
+function ChatComponent({ chatId }: { chatId: string }) {
+  const [messages, setMessages] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState(null);
+  // ... duplicated in multiple components
+  return { data: messages, loading, err };
+}
+```
+
+## API Routes
+
+- **Use descriptive route handlers**: `handleGetUserProfile`, `handleCreateChatMessage`
+- **Extract business logic** from route handlers into service functions
+- **Use consistent error handling** across all routes
+- **Return typed responses** using shared response types
+- **Validate input** using Zod or similar validation libraries
+
+## Mobile Responsiveness
+
+- **ALL UI changes must be mobile responsive** - test on mobile viewports (320px - 768px)
+- **Mobile-first approach**: Design for mobile first, then enhance for larger screens
+- **Use Tailwind responsive breakpoints**: `sm:`, `md:`, `lg:`, `xl:`, `2xl:` for progressive enhancement
+- **Test touch targets**: Ensure interactive elements are at least 44x44px on mobile
+- **Responsive typography**: Use responsive text sizes (e.g., `text-sm md:text-base lg:text-lg`)
+- **Flexible layouts**: Use `flex-col md:flex-row` for layouts that adapt to screen size
+- **Responsive spacing**: Adjust padding/margins for mobile (e.g., `p-4 md:p-6 lg:p-8`)
+- **Hide/show elements**: Use `hidden md:block` or `block md:hidden` for conditional visibility
+- **Responsive grids**: Use `grid-cols-1 md:grid-cols-2 lg:grid-cols-3` for adaptive grids
+- **Mobile navigation**: Ensure navigation works on mobile (hamburger menus, bottom nav, etc.)
+- **Touch-friendly inputs**: Ensure form inputs are properly sized and accessible on mobile
+- **Horizontal scrolling**: Avoid horizontal scrolling on mobile - use vertical stacking instead
+- **Viewport meta tag**: Ensure proper viewport configuration in layout files
+- **Test on real devices**: When possible, test on actual mobile devices, not just browser dev tools
+
+### Examples
+
+```typescript
+// ✅ Good: Mobile-first responsive component
+export function ChatList() {
+  return (
+    <div className="flex flex-col md:flex-row gap-4 p-4 md:p-6 lg:p-8">
+      <div className="w-full md:w-64">
+        <h1 className="text-lg md:text-xl lg:text-2xl font-bold">
+          Chat List
+        </h1>
+      </div>
+      <div className="flex-1 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {/* Chat items */}
+      </div>
+    </div>
+  );
+}
+
+// ✅ Good: Touch-friendly button with responsive sizing
+<button className="min-h-[44px] min-w-[44px] px-4 py-2 md:px-6 md:py-3">
+  Send Message
+</button>
+```
+
+

@@ -1,0 +1,59 @@
+# TypeScript Guidelines
+
+TypeScript-specific coding standards and best practices.
+
+## Type Safety
+
+- **Always use explicit types** for function parameters and return values
+- **Avoid `any`** - use `unknown` if type is truly unknown, then narrow it
+- **Use type guards** for runtime type checking
+- **Prefer interfaces over type aliases** for object shapes (unless you need unions/intersections)
+- **Use discriminated unions** for state machines or variant types
+- **Export types/interfaces** that are used across modules
+
+## Type Definitions
+
+- **Name types descriptively**: `UserAuthenticationResponse` not `Response`
+- **Use generic types** when appropriate: `ApiResponse<T>`, `PaginatedResult<T>`
+- **Create type aliases** for complex types used multiple times
+- **Use `const` assertions** for literal types when appropriate
+
+### Examples
+
+```typescript
+// ✅ Good: Explicit types and descriptive names
+interface UserAuthenticationResponse {
+  user: User;
+  token: string;
+  expiresAt: Date;
+}
+
+async function fetchUserById(userId: string): Promise<User | null> {
+  // ...
+}
+
+// ✅ Good: Generic types
+interface ApiResponse<T> {
+  success: boolean;
+  data?: T;
+  error?: string;
+}
+
+// ✅ Good: Discriminated unions for state machines
+type LoadingState =
+  | { status: "idle" }
+  | { status: "loading" }
+  | { status: "success"; data: User }
+  | { status: "error"; error: string };
+
+// ❌ Bad: Vague types and any usage
+interface Response {
+  // ...
+}
+
+async function getUser(id: any): Promise<any> {
+  // ...
+}
+```
+
+

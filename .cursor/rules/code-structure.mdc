@@ -1,0 +1,325 @@
+---
+description: TenexPerplexity code-structure rules
+alwaysApply: true
+---
+
+# Code Structure Guidelines
+
+Guidelines for organizing code, writing functions, and managing complexity.
+
+## File Organization
+
+- **One main export per file** when possible (with supporting types/interfaces)
+- **Group related exports** together
+- **Use index files** to re-export from modules
+- **Keep files focused** - if a file exceeds 300 lines, consider splitting
+
+## Function Structure (Clean Code Principles)
+
+- **Functions should be small, very small**: The first rule of functions is that they should be small. The second rule is that they should be smaller than that. Aim for functions under 20 lines, rarely exceed 50 lines
+- **Single Responsibility**: Each function should do ONE thing - if it does multiple things, split it into multiple functions. If you can't describe what a function does in one sentence, it's doing too much
+- **Extract until you can't extract more**: Keep extracting methods until you can't extract any more. Each extracted function should have a clear, single purpose
+- **If it needs a comment, extract it**: If a block of code warrants a comment explaining what it does, extract that logic into a function with a self-describing name. The function name should be so clear that comments become unnecessary
+- **Extract complex conditionals into well-named functions**: Instead of inline conditionals with comments explaining the logic, extract the condition into a descriptive function. For example, instead of `if (isNewChat || await checkIfFirstUserMessage(...)) { // Check if this is the first user message... }`, use `if (await shouldGenerateTitleForChat(...)) { }`. The function name should clearly communicate the intent, making the comment unnecessary
+- **Blocks should be one line**: Blocks within `if`, `else`, `while`, `for` statements should ideally be one line long - probably a function call. This makes the code read like a narrative
+- **Compose with clear action names**: Break complex operations into smaller functions with descriptive action names, then compose them. Function names should be verbs that clearly describe the action
+- **Long names are better than short enigmatic ones**: Don't be afraid to make a name long - a long descriptive name is better than a short enigmatic one. `calculateTotalPriceWithTaxAndDiscount()` is better than `calc()`
+- **Function arguments**: The ideal number of arguments is zero (niladic). Next comes one (monadic), followed closely by two (dyadic). Three arguments (triadic) should be avoided where possible. More than three (polyadic) requires very special justification - use objects instead
+- **Command Query Separation**: Functions should either do something (command) or answer something (query), but not both. `setUserActive(userId)` should not return a boolean - use `isUserActive(userId)` separately
+- **Prefer composition**: `processUserRegistration()` should call `validateUserData()`, `checkEmailAvailability()`, `createUserAccount()`, `sendWelcomeEmail()` - each with a clear, single purpose
+- **Algorithmic efficiency**: Consider time/space complexity - use appropriate data structures and algorithms
+- **Early returns** for error cases and guard clauses - these reduce nesting and improve readability
+- **Extract complex conditions** into well-named boolean variables or separate validation functions with descriptive names
+- **Use descriptive variable names** in function bodies
+- **Avoid side effects**: Functions should not have hidden side effects. If a function does something beyond its name, it's doing too much
+- **When in doubt, split it**: If a function is hard to name or describe, it's likely doing too much - split it into smaller functions
+- **The smaller the function, the easier to name**: The smaller and more focused a function is, the easier it is to choose a descriptive name
+
+### Examples
+
+```typescript
+// ✅ Good: Small functions with self-describing names - no comments needed
+function calculateTotalPriceWithTaxAndDiscount(
+  basePrice: number,
+  taxRate: number,
+  discountPercentage: number
+): number {
+  const priceAfterDiscount = applyDiscountToPrice(
+    basePrice,
+    discountPercentage
+  );
+  const finalPriceWithTax = addTaxToPrice(priceAfterDiscount, taxRate);
+  return finalPriceWithTax;
+}
+
+function applyDiscountToPrice(
+  price: number,
+  discountPercentage: number
+): number {
+  const discountAmount = calculateDiscountAmount(price, discountPercentage);
+  return price - discountAmount;
+}
+
+function calculateDiscountAmount(
+  price: number,
+  discountPercentage: number
+): number {
+  return price * (discountPercentage / 100);
+}
+
+function addTaxToPrice(price: number, taxRate: number): number {
+  return price * (1 + taxRate);
+}
+
+// ✅ Good: Blocks are one line - function calls
+function processUserRegistration(
+  userData: UserRegistrationData
+): Promise<RegistrationResult> {
+  if (!isValidUserRegistrationData(userData)) {
+    return createInvalidRegistrationResult("Invalid user data");
+  }
+
+  if (await isEmailAddressAlreadyRegistered(userData.emailAddress)) {
+    return createInvalidRegistrationResult("Email already registered");
+  }
+
+  const newUser = await createUserAccountInDatabase(userData);
+  await sendWelcomeEmailToNewUser(newUser.id);
+
+  return createSuccessfulRegistrationResult(newUser);
+}
+
+function isValidUserRegistrationData(data: UserRegistrationData): boolean {
+  return (
+    hasRequiredRegistrationFields(data) &&
+    hasValidEmailFormat(data.emailAddress)
+  );
+}
+
+function hasRequiredRegistrationFields(data: UserRegistrationData): boolean {
+  return data.emailAddress !== "" && data.password !== "" && data.name !== "";
+}
+
+function hasValidEmailFormat(emailAddress: string): boolean {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(emailAddress);
+}
+
+// ❌ Bad: Large function with comments explaining what blocks do
+function calculateTotalPriceWithTaxAndDiscount(
+  basePrice: number,
+  taxRate: number,
+  discountPercentage: number
+): number {
+  // Apply discount first
+  const discountAmount = basePrice * (discountPercentage / 100);
+  const priceAfterDiscount = basePrice - discountAmount;
+
+  // Then add tax
+  const finalPriceWithTax = priceAfterDiscount * (1 + taxRate);
+
+  return finalPriceWithTax;
+}
+
+// ❌ Bad: Function that needs comments to explain what it does
+function processUserRegistration(
+  userData: UserRegistrationData
+): Promise<RegistrationResult> {
+  // Validate the user data
+  if (
+    userData.emailAddress === "" ||
+    userData.password === "" ||
+    userData.name === ""
+  ) {
+    return { success: false, error: "Invalid user data" };
+  }
+
+  // Check email format
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(userData.emailAddress)) {
+    return { success: false, error: "Invalid email format" };
+  }
+
+  // Check if email is already registered
+  const emailCheck = await fetch(
+    `/api/users/check-email?email=${userData.emailAddress}`
+  );
+  const emailData = await emailCheck.json();
+  if (!emailData.available) {
+    return { success: false, error: "Email already registered" };
+  }
+
+  // Create the user account
+  const createResponse = await fetch("/api/users", {
+    method: "POST",
+    body: JSON.stringify(userData),
+  });
+  const newUser = await createResponse.json();
+
+  // Send welcome email
+  await fetch(`/api/users/${newUser.id}/send-welcome-email`, {
+    method: "POST",
+  });
+
+  return { success: true, user: newUser };
+}
+```
+
+## Reducing Code Complexity
+
+- **Avoid deep nesting**: Prefer 2-3 levels of nesting maximum. If nesting goes deeper, extract logic into separate functions
+- **Invert conditions to avoid nesting**: Instead of `if (success) { /* nested logic */ }`, use `if (!success) { return; }` then continue with main logic. Check failure conditions first, return early, then proceed with the happy path
+- **Use early exits/guard clauses**: Check error conditions and invalid inputs first, then return early. This flattens the code structure and eliminates nesting
+- **Guard clauses pattern**: Put all guard clauses at the top of the function, then the main logic flows linearly without nesting
+- **Extract nested logic**: If you have nested if/else or try/catch blocks, extract the nested code into well-named functions
+- **Use continue/break in loops**: Skip iterations early with `continue` and exit loops early with `break` to avoid nested conditions
+- **Prefer flat structures**: Use if-else-if chains or switch statements instead of deeply nested if-else blocks
+- **Extract complex conditions**: Move complex boolean expressions into well-named functions or variables (e.g., `isValidUserRegistrationData()` instead of inline condition)
+- **Use optional chaining and nullish coalescing**: `user?.profile?.name ?? "Unknown"` instead of nested if checks
+- **Avoid else after return**: If you return early, you don't need an else clause - the code after the if is implicitly the else case
+- **Extract switch/lookup tables**: For multiple conditions, prefer switch statements or lookup objects over nested if-else chains
+- **One level of indentation per function**: Ideally, functions should have minimal indentation - extract nested blocks into separate functions
+- **Fail fast**: Validate inputs and check preconditions at the start, return early if conditions aren't met
+
+### Examples
+
+```typescript
+// ✅ Good: Early exits/guard clauses reduce nesting
+function processUserMessage(
+  userId: string,
+  message: string,
+  chatId: string
+): ProcessResult {
+  // Guard clauses at the top - fail fast
+  if (!userId || userId.trim() === "") {
+    return { success: false, error: "Invalid user ID" };
+  }
+
+  if (!message || message.trim() === "") {
+    return { success: false, error: "Message cannot be empty" };
+  }
+
+  if (!chatId || chatId.trim() === "") {
+    return { success: false, error: "Invalid chat ID" };
+  }
+
+  // Main logic flows linearly without nesting
+  const sanitizedMessage = sanitizeMessageContent(message);
+  const messageWithMetadata = addMessageMetadata(sanitizedMessage, userId);
+  return saveMessageToChat(chatId, messageWithMetadata);
+}
+
+// ✅ Good: Invert conditions to avoid nesting - check failure first, return early
+async function processApiResponse(
+  response: ApiResponse
+): Promise<ProcessResult> {
+  // Check failure condition first, return early
+  if (!response.success) {
+    return handleApiError(response.error);
+  }
+
+  // Check if data exists, return early if not
+  if (!response.data) {
+    return { success: false, error: "No data received" };
+  }
+
+  // Main logic flows linearly without nesting - happy path
+  const processedData = transformResponseData(response.data);
+  const savedResult = await saveProcessedData(processedData);
+  return { success: true, data: savedResult };
+}
+
+// ❌ Bad: Nested logic when success condition is checked first
+async function processApiResponse(
+  response: ApiResponse
+): Promise<ProcessResult> {
+  if (response.success) {
+    // Nested inside success check
+    if (response.data) {
+      // More nesting
+      const processedData = transformResponseData(response.data);
+      const savedResult = await saveProcessedData(processedData);
+      return { success: true, data: savedResult };
+    } else {
+      return { success: false, error: "No data received" };
+    }
+  } else {
+    return handleApiError(response.error);
+  }
+}
+
+// ✅ Good: Use continue/break to avoid nested conditions in loops
+function processValidMessages(messages: Message[]): ProcessedMessage[] {
+  const processedMessages: ProcessedMessage[] = [];
+
+  for (const message of messages) {
+    // Early continue - skip invalid messages
+    if (!isValidMessage(message)) {
+      continue;
+    }
+
+    // Early continue - skip messages that are too old
+    if (isMessageTooOld(message)) {
+      continue;
+    }
+
+    // Main processing logic - no nesting needed
+    const processed = transformMessage(message);
+    processedMessages.push(processed);
+  }
+
+  return processedMessages;
+}
+
+// ✅ Good: Optional chaining and nullish coalescing reduce nesting
+function getUserDisplayName(user: User | null): string {
+  return user?.profile?.displayName ?? user?.email ?? "Unknown User";
+}
+
+// ❌ Bad: Nested null checks
+function getUserDisplayName(user: User | null): string {
+  if (user !== null) {
+    if (user.profile !== null && user.profile !== undefined) {
+      if (
+        user.profile.displayName !== null &&
+        user.profile.displayName !== undefined
+      ) {
+        return user.profile.displayName;
+      } else {
+        if (user.email !== null && user.email !== undefined) {
+          return user.email;
+        }
+      }
+    }
+  }
+  return "Unknown User";
+}
+
+// ✅ Good: No else needed after return
+function getUserStatus(user: User): string {
+  if (user.isActive) {
+    return "Active";
+  }
+
+  return "Inactive";
+}
+
+// ❌ Bad: Unnecessary else after return
+function getUserStatus(user: User): string {
+  if (user.isActive) {
+    return "Active";
+  } else {
+    // Unnecessary else - code after if is already the else case
+    return "Inactive";
+  }
+}
+```
+
+## Error Handling
+
+- **Use descriptive error messages** that explain what went wrong and why
+- **Create custom error classes** for different error types
+- **Handle errors at appropriate levels** - don't swallow errors silently
+- **Return error objects** with consistent structure: `{ success: false, error: string }`
+
+

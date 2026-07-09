@@ -22,7 +22,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 5,
   userScalable: true,
-  themeColor: "#667eea",
+  themeColor: "#1C1B28",
   colorScheme: "dark",
 }
 
@@ -84,7 +84,7 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en" data-theme="tenexity-dark">
+    <html lang="en" data-theme="tenexity">
       <body className="min-h-screen bg-background text-foreground font-sans antialiased">
         <AuthProvider>{children}</AuthProvider>
       </body>

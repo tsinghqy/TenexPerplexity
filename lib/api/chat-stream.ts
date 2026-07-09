@@ -8,6 +8,7 @@ export interface StreamChatClientRequest {
   modelId?: string
   useWebSearch?: boolean
   chatId?: string
+  parentId?: string
   signal?: AbortSignal
   onChunk: (chunk: string) => void
   onCitations?: (citations: Citation[]) => void
@@ -62,6 +63,7 @@ export async function sendMessageStreaming(request: StreamChatClientRequest): Pr
       modelId: request.modelId,
       useWebSearch: request.useWebSearch === true,
       chatId: request.chatId,
+      parentId: request.parentId,
     }),
     signal: request.signal,
   })

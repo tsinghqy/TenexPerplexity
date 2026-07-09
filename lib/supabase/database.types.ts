@@ -19,6 +19,8 @@ export interface Database {
           title: string | null
           root_node_id: string | null
           is_expanded: boolean | null
+          position_x: number | null
+          position_y: number | null
           created_at: string
           updated_at: string
         }
@@ -28,6 +30,8 @@ export interface Database {
           title?: string | null
           root_node_id?: string | null
           is_expanded?: boolean | null
+          position_x?: number | null
+          position_y?: number | null
           created_at?: string
           updated_at?: string
         }
@@ -37,6 +41,44 @@ export interface Database {
           title?: string | null
           root_node_id?: string | null
           is_expanded?: boolean | null
+          position_x?: number | null
+          position_y?: number | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      node_parent_paths: {
+        Row: {
+          node_id: string
+          chat_id: string
+          user_id: string
+          path: string[]
+          depth: number
+          root_node_id: string | null
+          parent_node_id: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          node_id: string
+          chat_id: string
+          user_id: string
+          path: string[]
+          depth?: number
+          root_node_id?: string | null
+          parent_node_id?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          node_id?: string
+          chat_id?: string
+          user_id?: string
+          path?: string[]
+          depth?: number
+          root_node_id?: string | null
+          parent_node_id?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -142,6 +184,22 @@ export interface Database {
           id: string
           content: string
           created_at: string
+        }[]
+      }
+      get_node_parent_tree: {
+        Args: {
+          p_node_id: string
+          p_user_id: string
+        }
+        Returns: {
+          id: string
+          chat_id: string
+          user_id: string
+          parent_id: string | null
+          role: MessageRole
+          content: string
+          created_at: string
+          depth: number
         }[]
       }
     }

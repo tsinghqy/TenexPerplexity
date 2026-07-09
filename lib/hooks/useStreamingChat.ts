@@ -1,10 +1,17 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { getChat, getChats, type ChatSummary } from '@/lib/api/chat'
+import {
+  forkFromNode,
+  getChat,
+  getChats,
+  getGraphEdges,
+  type ChatSummary,
+  type GraphEdgeSummary,
+} from '@/lib/api/chat'
 import { sendMessageStreaming } from '@/lib/api/chat-stream'
 import { CLIENT_DEFAULT_MODEL_ID } from '@/lib/llm/client-defaults'
-import type { Citation } from '@/lib/llm/citations'
+import { extractCitationsFromMarkdown, type Citation } from '@/lib/llm/citations'
 import type { ChatMessage } from '@/lib/llm/types'
 
 export interface ChatThreadMessage {
@@ -31,7 +38,9 @@ function toHistoryMessages(messages: ChatThreadMessage[]): ChatMessage[] {
 export function useStreamingChat(initialModelId?: string) {
   const [messages, setMessages] = useState<ChatThreadMessage[]>([])
   const [chats, setChats] = useState<ChatSummary[]>([])
+  const [edges, setEdges] = useState<GraphEdgeSummary[]>([])
   const [activeChatId, setActiveChatId] = useState<string | null>(null)
+  const [branchParentNodeId, setBranchParentNodeId] = useState<string | null>(null)
   const [isLoadingChats, setIsLoadingChats] = useState(true)
   const [isLoadingMessages, setIsLoadingMessages] = useState(false)
   const [isStreaming, setIsStreaming] = useState(false)
@@ -41,12 +50,15 @@ export function useStreamingChat(initialModelId?: string) {
   const abortControllerRef = useRef<AbortController | null>(null)
 
   const refreshChats = useCallback(async () => {
-    const result = await getChats()
-    if (!result.success) {
-      setErrorMessage(result.error || 'Failed to load chats')
+    const [chatsResult, edgesResult] = await Promise.all([getChats(), getGraphEdges()])
+    if (!chatsResult.success) {
+      setErrorMessage(chatsResult.error || 'Failed to load chats')
       return
     }
-    setChats(result.chats || [])
+    setChats(chatsResult.chats || [])
+    if (edgesResult.success) {
+      setEdges(edgesResult.edges || [])
+    }
   }, [])
 
   useEffect(() => {
@@ -54,18 +66,21 @@ export function useStreamingChat(initialModelId?: string) {
 
     async function loadInitialChats() {
       setIsLoadingChats(true)
-      const result = await getChats()
+      const [chatsResult, edgesResult] = await Promise.all([getChats(), getGraphEdges()])
       if (cancelled) {
         return
       }
 
-      if (!result.success) {
-        setErrorMessage(result.error || 'Failed to load chats')
+      if (!chatsResult.success) {
+        setErrorMessage(chatsResult.error || 'Failed to load chats')
         setIsLoadingChats(false)
         return
       }
 
-      setChats(result.chats || [])
+      setChats(chatsResult.chats || [])
+      if (edgesResult.success) {
+        setEdges(edgesResult.edges || [])
+      }
       setIsLoadingChats(false)
     }
 
@@ -88,6 +103,7 @@ export function useStreamingChat(initialModelId?: string) {
       }
 
       setErrorMessage(null)
+      setBranchParentNodeId(null)
       setIsLoadingMessages(true)
       setActiveChatId(chatId)
 
@@ -104,6 +120,10 @@ export function useStreamingChat(initialModelId?: string) {
           id: node.id,
           role: node.role,
           content: node.content,
+          citations:
+            node.role === 'assistant'
+              ? extractCitationsFromMarkdown(node.content)
+              : undefined,
         }))
       )
     },
@@ -116,9 +136,31 @@ export function useStreamingChat(initialModelId?: string) {
     }
     stopStreaming()
     setActiveChatId(null)
+    setBranchParentNodeId(null)
     setMessages([])
     setErrorMessage(null)
   }, [isStreaming, stopStreaming])
+
+  const branchFromMessage = useCallback(
+    async (nodeId: string) => {
+      if (isStreaming) {
+        return
+      }
+
+      setErrorMessage(null)
+      const result = await forkFromNode(nodeId)
+      if (!result.success || !result.chatId || !result.parentNodeId) {
+        setErrorMessage(result.error || 'Failed to create branch')
+        return
+      }
+
+      setActiveChatId(result.chatId)
+      setBranchParentNodeId(result.parentNodeId)
+      setMessages([])
+      await refreshChats()
+    },
+    [isStreaming, refreshChats]
+  )
 
   const sendMessage = useCallback(
     async (rawMessage: string) => {
@@ -144,6 +186,7 @@ export function useStreamingChat(initialModelId?: string) {
       }
 
       const history = toHistoryMessages(messages)
+      const parentIdForRequest = branchParentNodeId || undefined
 
       setMessages((current) => [...current, userMessage, assistantPlaceholder])
       setIsStreaming(true)
@@ -158,6 +201,7 @@ export function useStreamingChat(initialModelId?: string) {
           modelId: selectedModelId,
           useWebSearch,
           chatId: activeChatId || undefined,
+          parentId: parentIdForRequest,
           signal: abortController.signal,
           onChunk: (chunk) => {
             setMessages((current) =>
@@ -179,6 +223,7 @@ export function useStreamingChat(initialModelId?: string) {
             if (payload.chatId) {
               setActiveChatId(payload.chatId)
             }
+            setBranchParentNodeId(null)
 
             setMessages((current) =>
               current.map((message) => {
@@ -234,13 +279,23 @@ export function useStreamingChat(initialModelId?: string) {
         abortControllerRef.current = null
       }
     },
-    [activeChatId, isStreaming, messages, refreshChats, selectedModelId, useWebSearch]
+    [
+      activeChatId,
+      branchParentNodeId,
+      isStreaming,
+      messages,
+      refreshChats,
+      selectedModelId,
+      useWebSearch,
+    ]
   )
 
   return {
     messages,
     chats,
+    edges,
     activeChatId,
+    branchParentNodeId,
     isLoadingChats,
     isLoadingMessages,
     isStreaming,
@@ -253,6 +308,7 @@ export function useStreamingChat(initialModelId?: string) {
     stopStreaming,
     selectChat,
     startNewChat,
+    branchFromMessage,
     refreshChats,
   }
 }

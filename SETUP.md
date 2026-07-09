@@ -1,4 +1,4 @@
-# TenexPerplexity Setup
+# Tenexity Setup
 
 ## Prerequisites
 
@@ -29,12 +29,19 @@ cp .env.example .env.local
 | `NEXT_PUBLIC_SUPABASE_URL` | P1 |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | P1 |
 | `SUPABASE_SERVICE_ROLE_KEY` | P1 (server only) |
-| `OPENAI_API_KEY` | P2 (chat + embeddings) |
-| `OPENROUTER_API_KEY` | P2/P3 (optional; multi-model + `:online` search) |
+| `OPENAI_API_KEY` **or** `OPENROUTER_API_KEY` | P2 (at least one) |
+| `DEFAULT_MODEL_ID` | P2 (optional) |
 | `OPENAI_WEB_SEARCH_API_KEY` | P3 (optional dedicated search key) |
 | `OPENAI_WEB_SEARCH_MODEL` | P3 (optional) |
-| `DEFAULT_MODEL_ID` | P2 (optional) |
 | `NEXT_PUBLIC_APP_URL` | P1+ (auth redirects / OpenRouter referer) |
+
+### P2 streaming chat smoke test
+
+1. Add `OPENAI_API_KEY` and/or `OPENROUTER_API_KEY` to `.env.local`, restart `npm run dev`
+2. Sign in → home shows the Tenexity chat UI
+3. Send a message → tokens stream into an assistant bubble
+4. Stop works mid-stream; Clear resets the thread
+5. Without LLM keys, the API returns a clear 503 explaining which env vars to set
 
 ## Step 3: Supabase (P1+)
 

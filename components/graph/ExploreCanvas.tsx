@@ -18,12 +18,14 @@ import {
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import { updateChatPosition, type ChatSummary, type GraphEdgeSummary } from '@/lib/api/chat'
+import { GRAPH_NODE_WIDTH, layoutChats } from '@/lib/graph/layout'
 import { cn } from '@/lib/utils'
 
 interface ExploreCanvasProps {
   chats: ChatSummary[]
   edges: GraphEdgeSummary[]
   activeChatId: string | null
+  panelOpen?: boolean
   onOpenChat: (chatId: string) => void
 }
 
@@ -35,10 +37,11 @@ function ChatGraphNode({ data, selected }: NodeProps) {
   return (
     <div
       className={cn(
-        'w-[240px] rounded-2xl border bg-[var(--surface-elevated)] px-3.5 py-3 text-left shadow-md transition',
+        'rounded-2xl border bg-[var(--surface-elevated)] px-3.5 py-3 text-left shadow-md transition',
         'hover:shadow-lg',
         selected ? 'border-primary ring-4 ring-primary/20' : 'border-white/10'
       )}
+      style={{ width: GRAPH_NODE_WIDTH }}
     >
       <Handle
         type="target"
@@ -77,75 +80,11 @@ function ChatGraphNode({ data, selected }: NodeProps) {
 
 const nodeTypes = { chatGraphNode: ChatGraphNode }
 
-function layoutChats(
-  chats: ChatSummary[],
-  edges: GraphEdgeSummary[]
-): Map<string, { x: number; y: number }> {
-  const positions = new Map<string, { x: number; y: number }>()
-  const children = new Map<string, string[]>()
-  const targets = new Set(edges.map((edge) => edge.targetChatId))
-
-  for (const edge of edges) {
-    const list = children.get(edge.sourceChatId) || []
-    list.push(edge.targetChatId)
-    children.set(edge.sourceChatId, list)
-  }
-
-  const roots = chats.filter((chat) => !targets.has(chat.id))
-  let forestX = 40
-
-  for (const root of roots) {
-    const queue: Array<{ id: string; depth: number }> = [{ id: root.id, depth: 0 }]
-    const slotsAtDepth = new Map<number, number>()
-    const visited = new Set<string>()
-
-    while (queue.length > 0) {
-      const current = queue.shift()!
-      if (visited.has(current.id)) {
-        continue
-      }
-      visited.add(current.id)
-
-      const slot = slotsAtDepth.get(current.depth) || 0
-      slotsAtDepth.set(current.depth, slot + 1)
-      positions.set(current.id, {
-        x: forestX + current.depth * 280,
-        y: 40 + slot * 140,
-      })
-
-      for (const childId of children.get(current.id) || []) {
-        queue.push({ id: childId, depth: current.depth + 1 })
-      }
-    }
-
-    forestX += Math.max(1, (slotsAtDepth.get(0) || 1)) * 40 + 320
-  }
-
-  for (const chat of chats) {
-    if (!positions.has(chat.id)) {
-      const index = positions.size
-      positions.set(chat.id, {
-        x: 40 + (index % 3) * 280,
-        y: 40 + Math.floor(index / 3) * 140,
-      })
-    }
-    if (
-      typeof chat.position_x === 'number' &&
-      typeof chat.position_y === 'number' &&
-      Number.isFinite(chat.position_x) &&
-      Number.isFinite(chat.position_y)
-    ) {
-      positions.set(chat.id, { x: chat.position_x, y: chat.position_y })
-    }
-  }
-
-  return positions
-}
-
 export function ExploreCanvas({
   chats,
   edges,
   activeChatId,
+  panelOpen = false,
   onOpenChat,
 }: ExploreCanvasProps) {
   const branchedChatIds = useMemo(
@@ -154,25 +93,74 @@ export function ExploreCanvas({
   )
   const layout = useMemo(() => layoutChats(chats, edges), [chats, edges])
   const saveTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
-
+  const persistedInitialIds = useRef<Set<string>>(new Set())
   const [nodes, setNodes] = useState<Node[]>([])
 
   useEffect(() => {
-    setNodes(
-      chats.map((chat) => ({
-        id: chat.id,
-        type: 'chatGraphNode',
-        position: layout.get(chat.id) || { x: 0, y: 0 },
-        data: {
-          label: chat.title?.trim() || 'Untitled chat',
-          isBranch: branchedChatIds.has(chat.id),
-          preview: branchedChatIds.has(chat.id)
-            ? 'Forked research path'
-            : 'Drag to rearrange · double-click to chat',
-        },
-        selected: activeChatId === chat.id,
-      }))
-    )
+    const timers = saveTimers.current
+    return () => {
+      for (const timer of timers.values()) {
+        clearTimeout(timer)
+      }
+      timers.clear()
+    }
+  }, [])
+
+  // Persist auto-assigned positions once so new chats keep their free slot.
+  useEffect(() => {
+    for (const chat of chats) {
+      const hasSaved =
+        typeof chat.position_x === 'number' &&
+        typeof chat.position_y === 'number' &&
+        Number.isFinite(chat.position_x) &&
+        Number.isFinite(chat.position_y)
+      if (hasSaved || persistedInitialIds.current.has(chat.id)) {
+        continue
+      }
+      const point = layout.get(chat.id)
+      if (!point) {
+        continue
+      }
+      persistedInitialIds.current.add(chat.id)
+      void updateChatPosition(chat.id, point)
+    }
+  }, [chats, layout])
+
+  useEffect(() => {
+    setNodes((current) => {
+      const currentById = new Map(current.map((node) => [node.id, node]))
+
+      return chats.map((chat) => {
+        const existing = currentById.get(chat.id)
+        const layoutPosition = layout.get(chat.id) || { x: 0, y: 0 }
+        const hasSaved =
+          typeof chat.position_x === 'number' &&
+          typeof chat.position_y === 'number' &&
+          Number.isFinite(chat.position_x) &&
+          Number.isFinite(chat.position_y)
+
+        // Prefer in-session position so chat refreshes don't snap dragged cards.
+        const position =
+          existing?.position ??
+          (hasSaved
+            ? { x: chat.position_x as number, y: chat.position_y as number }
+            : layoutPosition)
+
+        return {
+          id: chat.id,
+          type: 'chatGraphNode',
+          position,
+          data: {
+            label: chat.title?.trim() || 'Untitled chat',
+            isBranch: branchedChatIds.has(chat.id),
+            preview: branchedChatIds.has(chat.id)
+              ? 'Forked research path'
+              : 'Drag to rearrange · double-click to chat',
+          },
+          selected: activeChatId === chat.id,
+        }
+      })
+    })
   }, [activeChatId, branchedChatIds, chats, layout])
 
   const flowEdges: Edge[] = useMemo(
@@ -183,8 +171,8 @@ export function ExploreCanvas({
         target: edge.targetChatId,
         animated: true,
         type: 'smoothstep',
-        markerEnd: { type: MarkerType.ArrowClosed, color: 'oklch(0.72 0.1 255)' },
-        style: { stroke: 'oklch(0.72 0.1 255)', strokeWidth: 2 },
+        markerEnd: { type: MarkerType.ArrowClosed, color: 'var(--color-primary)' },
+        style: { stroke: 'var(--color-primary)', strokeWidth: 2 },
       })),
     [edges]
   )
@@ -236,6 +224,10 @@ export function ExploreCanvas({
         onNodesChange={onNodesChange}
         onNodeDoubleClick={handleNodeDoubleClick}
         fitView
+        fitViewOptions={{
+          padding: panelOpen ? 0.35 : 0.2,
+          includeHiddenNodes: false,
+        }}
         nodesDraggable
         nodesConnectable={false}
         elementsSelectable
@@ -245,13 +237,13 @@ export function ExploreCanvas({
         maxZoom={1.6}
         proOptions={{ hideAttribution: true }}
       >
-        <Background gap={22} size={1} color="rgba(167,199,255,0.12)" />
+        <Background gap={22} size={1} color="color-mix(in oklch, var(--color-primary) 18%, transparent)" />
         <Controls showInteractive={false} />
         <MiniMap
           pannable
           zoomable
-          maskColor="rgba(20,18,32,0.72)"
-          nodeColor={() => 'oklch(0.72 0.1 255)'}
+          maskColor="color-mix(in oklch, var(--canvas-bg) 75%, black)"
+          nodeColor={() => 'var(--color-primary)'}
         />
       </ReactFlow>
     </div>

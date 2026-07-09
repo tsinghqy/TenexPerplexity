@@ -1,5 +1,3 @@
-import type { Citation } from '@/lib/llm/citations'
-import type { ChatMessage } from '@/lib/llm/types'
 import type { PersistedMessageNode } from '@/lib/chat/persist'
 
 export interface ChatSummary {
@@ -61,28 +59,6 @@ export async function getChat(chatId: string): Promise<ChatWithNodesResponse> {
       error: error instanceof Error ? error.message : 'Failed to load chat',
     }
   }
-}
-
-export function persistedNodesToHistory(nodes: PersistedMessageNode[]): ChatMessage[] {
-  return nodes.map((node) => ({
-    role: node.role,
-    content: node.content,
-  }))
-}
-
-export function persistedNodesToThreadMessages(
-  nodes: PersistedMessageNode[]
-): Array<{
-  id: string
-  role: 'user' | 'assistant'
-  content: string
-  citations?: Citation[]
-}> {
-  return nodes.map((node) => ({
-    id: node.id,
-    role: node.role,
-    content: node.content,
-  }))
 }
 
 export async function forkFromNode(nodeId: string): Promise<{

@@ -88,6 +88,17 @@ After P4 SQL is applied, run `supabase/migrations/p5_combined.sql` in the SQL Ed
 4. Sign out → back to sign-in
 5. Visit `/` while signed out → redirected to sign-in with `?redirect=/`
 
+### P6 graph branching migrations
+
+After P5 SQL is applied, run `supabase/migrations/p6_combined.sql` in the SQL Editor.
+
+### P6 Explore smoke test
+
+1. Ask a question → **Branch from here** on the answer
+2. Explore opens with a new branch card and a fork edge (unrelated chats are not linked)
+3. New cards spawn in free space (no overlap); drag persists after refresh
+4. Follow-up in the branch uses parent-path context
+
 ## Step 4: Run locally
 
 ```bash
@@ -98,13 +109,19 @@ App: [http://localhost:3000](http://localhost:3000)
 
 ## Step 5: Production (P7)
 
-1. Deploy to Vercel (or similar)
-2. Set the same env vars in the host dashboard
-3. Add custom domain
-4. Update Supabase redirect URLs and `NEXT_PUBLIC_APP_URL`
+See **`DEPLOY.md`** for the full Vercel + Supabase checklist.
+
+Summary:
+
+1. Deploy from `main` on Vercel
+2. Set env vars (including `NEXT_PUBLIC_APP_URL` / `NEXT_PUBLIC_SITE_URL` with `https://`)
+3. Point Supabase Site URL + `/auth/callback` at the Vercel origin
+4. Smoke-test auth, chat, Live sources, Branch → Explore
 
 ## Troubleshooting
 
 - **Build errors**: `rm -rf .next && npm install && npm run build`
-- **Auth redirects**: confirm Supabase redirect URLs match the app origin
+- **Auth redirects**: confirm Supabase redirect URLs match the app origin exactly
 - **Missing API keys**: chat/search routes return clear errors until keys are set
+- **Invalid URL at build**: ensure site/app URL is a full origin or a host that can be normalized (see `app/layout.tsx`)
+- **Explore cards overlap**: open Explore once so auto-layout can persist free slots; clear stale `position_x/y` in DB if needed

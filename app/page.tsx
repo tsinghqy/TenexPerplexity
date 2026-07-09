@@ -217,6 +217,7 @@ export default function HomePage() {
                 chats={chats}
                 edges={edges}
                 activeChatId={activeChatId}
+                panelOpen={explorePanelOpen}
                 onOpenChat={(chatId) => {
                   void openChatInExplore(chatId)
                 }}

@@ -53,6 +53,17 @@ function extractResponseTextFromOutput(output: unknown): string {
   return chunks.join('\n\n')
 }
 
+function logWebSearch(message: string, detail?: unknown) {
+  if (process.env.NODE_ENV === 'production') {
+    return
+  }
+  if (detail === undefined) {
+    console.warn(message)
+    return
+  }
+  console.warn(message, detail)
+}
+
 function isUnsupportedWebSearchToolError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error)
   return (
@@ -147,7 +158,7 @@ export class OpenAIProvider implements LLMProvider {
 
     const webSearchApiKey = resolveOpenAIWebSearchApiKey()
     if (!webSearchApiKey) {
-      console.warn('[OpenAI Provider] No web search key; answering without live sources')
+      logWebSearch('[OpenAI Provider] No web search key; answering without live sources')
       return streamOpenAICompatibleChat(this.client, options)
     }
 
@@ -183,7 +194,7 @@ export class OpenAIProvider implements LLMProvider {
         if (!isUnsupportedWebSearchToolError(primaryError)) {
           throw primaryError
         }
-        console.warn(
+        logWebSearch(
           '[OpenAI Provider] web_search unsupported; falling back to web_search_preview:',
           primaryError
         )
@@ -193,13 +204,13 @@ export class OpenAIProvider implements LLMProvider {
       if (result.citations.length > 0) {
         await options.onCitations?.(result.citations)
       } else {
-        console.warn('[OpenAI Provider] Web search returned no citations for this answer')
+        logWebSearch('[OpenAI Provider] Web search returned no citations for this answer')
       }
 
       await simulateStreamingChunks(result.content, options.onChunk, options.signal)
       return result
     } catch (error) {
-      console.warn('[OpenAI Provider] Web search failed, retrying with auto tool choice:', error)
+      logWebSearch('[OpenAI Provider] Web search failed, retrying with auto tool choice:', error)
       try {
         const retry = await attempt(buildOpenAIWebSearchTools(), false).catch(() =>
           attempt(buildOpenAIWebSearchPreviewTools(), false)
@@ -210,7 +221,7 @@ export class OpenAIProvider implements LLMProvider {
         await simulateStreamingChunks(retry.content, options.onChunk, options.signal)
         return retry
       } catch (retryError) {
-        console.warn('[OpenAI Provider] Web search retry failed:', retryError)
+        logWebSearch('[OpenAI Provider] Web search retry failed:', retryError)
         return streamOpenAICompatibleChat(this.client, {
           ...options,
           systemPrompt,

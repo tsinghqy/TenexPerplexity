@@ -16,10 +16,17 @@ After P4 is applied, run:
 
 This adds `search_chat_nodes_safe`, `get_nodes_needing_embeddings`, and an index for chat message queries.
 
-Cross-chat / `node_parent_paths` RPCs are deferred to P6 (graph branching).
+## P6 — graph branching / path RAG
+
+After P5 is applied, run:
+
+- `supabase/migrations/p6_combined.sql`
+
+This adds `node_parent_paths`, chat canvas positions, path RPCs, and related RLS.
 
 ## Verify
 
-1. Table Editor shows `chats`, `nodes`, `node_links`
+1. Table Editor shows `chats`, `nodes`, `node_links`, `node_parent_paths`
 2. Send a message → user row in `nodes` gets an `embedding` shortly after
-3. Follow-up in the same chat answers using prior turns without relying on client history alone
+3. Follow-up in the same chat answers using prior turns
+4. Branch from an answer → Explore shows a fork edge; branch follow-ups use ancestor path context

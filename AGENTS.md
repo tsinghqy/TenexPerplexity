@@ -31,18 +31,18 @@
 
 ---
 
-## Build phases (do not skip checkpoints)
+## Delivery status
 
-| Phase | Goal |
-|-------|------|
-| P0 | Scaffold + rules (this checkpoint) |
-| P1 | Auth (Supabase) |
-| P2 | Streaming chat |
-| P3 | Web search + citations |
-| P4 | Persist chats/messages |
-| P5 | RAG + embeddings |
-| P6 | Graph branching (wow) |
-| P7 | Deploy to domain |
+| Phase | Goal | Status |
+|-------|------|--------|
+| P0 | Scaffold + rules | Done |
+| P1 | Auth (Supabase) | Done |
+| P2 | Streaming chat | Done |
+| P3 | Web search + citations | Done |
+| P4 | Persist chats/messages | Done |
+| P5 | RAG + embeddings | Done |
+| P6 | Graph branching (Explore) | Done |
+| P7 | Deploy (Vercel) | Done — see `DEPLOY.md` |
 
 ---
 
@@ -57,8 +57,8 @@ Refer to these files in `agent-rules/` when working on related areas:
 | `agent-rules/react-nextjs-guidelines.md` | React, hooks, API routes, mobile |
 | `agent-rules/react-best-practices.md` | React performance |
 | `agent-rules/code-review-checklist.md` | Before submitting for review |
-| `agent-rules/database-schema.md` | DB queries / migrations (updated as schema lands) |
-| `agent-rules/rag-system.md` | RAG / embeddings (P5+) |
+| `agent-rules/database-schema.md` | DB queries / migrations |
+| `agent-rules/rag-system.md` | RAG / embeddings / path context |
 | `agent-rules/common-patterns.md` | Existing code patterns |
 | `agent-rules/directory-structure.md` | Where to place new code |
 | `agent-rules/development.md` | Dev commands |
@@ -67,4 +67,4 @@ Refer to these files in `agent-rules/` when working on related areas:
 
 Also see `rules/` for Cursor project rules (mirrored under `.cursor/rules/*.mdc`).
 
-**For setup**: See `SETUP.md` and `README.md`.
+**For setup / deploy**: `SETUP.md`, `DEPLOY.md`, `README.md`.

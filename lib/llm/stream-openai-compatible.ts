@@ -3,9 +3,13 @@ import { buildChatCompletionMessages } from './message-builder'
 import { getModelById } from './models'
 import type { ChatGenerationResult, StreamChatOptions } from './types'
 
+const SIMULATED_CHUNK_SIZE = 24
+const SIMULATED_CHUNK_DELAY_MS = 8
+
 export async function streamOpenAICompatibleChat(
   client: OpenAI,
-  options: StreamChatOptions
+  options: StreamChatOptions,
+  modelIdOverride?: string
 ): Promise<ChatGenerationResult> {
   const model = getModelById(options.modelId)
   if (!model) {
@@ -13,7 +17,7 @@ export async function streamOpenAICompatibleChat(
   }
 
   const stream = await client.chat.completions.create({
-    model: options.modelId,
+    model: modelIdOverride || options.modelId,
     messages: buildChatCompletionMessages(options.messages, options.systemPrompt),
     temperature: options.temperature ?? model.defaultTemperature,
     max_tokens: options.maxTokens ?? model.defaultMaxTokens,
@@ -37,4 +41,20 @@ export async function streamOpenAICompatibleChat(
   }
 
   return { content: fullContent }
+}
+
+export async function simulateStreamingChunks(
+  text: string,
+  onChunk: (chunk: string) => void | Promise<void>,
+  signal?: AbortSignal
+): Promise<void> {
+  for (let index = 0; index < text.length; index += SIMULATED_CHUNK_SIZE) {
+    if (signal?.aborted) {
+      break
+    }
+
+    const chunk = text.slice(index, index + SIMULATED_CHUNK_SIZE)
+    await onChunk(chunk)
+    await new Promise((resolve) => setTimeout(resolve, SIMULATED_CHUNK_DELAY_MS))
+  }
 }

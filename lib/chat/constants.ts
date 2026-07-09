@@ -3,6 +3,7 @@ export const DEFAULT_CHAT_SYSTEM_PROMPT =
 
 export const STREAM_EVENT = {
   CHUNK: 'chunk',
+  CITATIONS: 'citations',
   ERROR: 'error',
   COMPLETE: 'complete',
   DONE: '[DONE]',

@@ -108,8 +108,8 @@ export class OpenAIProvider implements LLMProvider {
     tools: ReturnType<typeof buildOpenAIWebSearchTools>
     forceTool: boolean
   }) {
-    // Cast: SDK typings may lag the live Responses API (`web_search` + sources include).
-    return this.getClientForWebSearch().responses.create({
+    // SDK typings lag the live Responses API (`web_search` + sources include).
+    const request = {
       model: params.modelId,
       input: params.inputText,
       tools: params.tools,
@@ -118,7 +118,10 @@ export class OpenAIProvider implements LLMProvider {
       text: { format: { type: 'text' } },
       max_output_tokens: params.maxTokens,
       store: false,
-    } as Parameters<OpenAI['responses']['create']>[0])
+    }
+    return this.getClientForWebSearch().responses.create(
+      request as unknown as Parameters<OpenAI['responses']['create']>[0]
+    )
   }
 
   private citationsFromResponse(output: unknown, content: string) {

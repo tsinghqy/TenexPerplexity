@@ -1,6 +1,9 @@
-# TenexPerplexity
+# Tenexity
 
 Streaming answer engine with live web search, citations, and forkable research branches.
+
+> Repo folder: `TenexPerplexity` (package name unchanged). Product name in the UI is **Tenexity**.
+
 
 ## Stack
 

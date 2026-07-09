@@ -1,37 +1,38 @@
 @import "tailwindcss";
 @plugin "daisyui";
 @plugin "daisyui/theme" {
-  name: "graphchat-dark";
+  /* Dark pastel: charcoal surfaces, soft lavender/sky accents */
+  name: "tenexity";
   default: true;
   prefersdark: true;
   color-scheme: dark;
-  --color-base-100: oklch(0.12 0 0);
-  --color-base-200: oklch(0.16 0 0);
-  --color-base-300: oklch(0.22 0 0);
-  --color-base-content: oklch(0.95 0 0);
-  --color-primary: oklch(0.65 0.25 265);
-  --color-primary-content: oklch(0.98 0 0);
-  --color-secondary: oklch(0.22 0 0);
-  --color-secondary-content: oklch(0.95 0 0);
-  --color-accent: oklch(0.6 0.2 200);
-  --color-accent-content: oklch(0.98 0 0);
-  --color-neutral: oklch(0.14 0 0);
-  --color-neutral-content: oklch(0.95 0 0);
-  --color-info: oklch(0.6 0.2 200);
-  --color-info-content: oklch(0.98 0 0);
-  --color-success: oklch(0.7 0.18 150);
-  --color-success-content: oklch(0.12 0 0);
-  --color-warning: oklch(0.75 0.2 80);
-  --color-warning-content: oklch(0.12 0 0);
-  --color-error: oklch(0.55 0.22 25);
+  --color-base-100: oklch(0.18 0.02 270);
+  --color-base-200: oklch(0.22 0.025 270);
+  --color-base-300: oklch(0.28 0.03 270);
+  --color-base-content: oklch(0.93 0.01 270);
+  --color-primary: oklch(0.72 0.1 255);
+  --color-primary-content: oklch(0.18 0.02 270);
+  --color-secondary: oklch(0.3 0.04 290);
+  --color-secondary-content: oklch(0.9 0.03 290);
+  --color-accent: oklch(0.78 0.08 200);
+  --color-accent-content: oklch(0.2 0.03 220);
+  --color-neutral: oklch(0.2 0.02 270);
+  --color-neutral-content: oklch(0.9 0.01 270);
+  --color-info: oklch(0.74 0.08 230);
+  --color-info-content: oklch(0.18 0.02 270);
+  --color-success: oklch(0.76 0.08 160);
+  --color-success-content: oklch(0.2 0.03 160);
+  --color-warning: oklch(0.82 0.08 85);
+  --color-warning-content: oklch(0.25 0.04 70);
+  --color-error: oklch(0.68 0.12 20);
   --color-error-content: oklch(0.98 0 0);
-  --radius-selector: 0.5rem;
-  --radius-field: 0.5rem;
-  --radius-box: 0.75rem;
+  --radius-selector: 0.75rem;
+  --radius-field: 0.85rem;
+  --radius-box: 1rem;
   --size-selector: 0.25rem;
   --size-field: 0.25rem;
   --border: 1px;
-  --depth: 1;
+  --depth: 0;
   --noise: 0;
 }
 
@@ -47,32 +48,36 @@
   --secondary: var(--color-secondary);
   --secondary-foreground: var(--color-secondary-content);
   --muted: var(--color-base-300);
-  --muted-foreground: color-mix(in oklch, var(--color-base-content) 58%, transparent);
+  --muted-foreground: color-mix(in oklch, var(--color-base-content) 62%, transparent);
   --accent: var(--color-accent);
   --accent-foreground: var(--color-accent-content);
   --destructive: var(--color-error);
   --destructive-foreground: var(--color-error-content);
-  --border: color-mix(in oklch, var(--color-base-content) 14%, transparent);
-  --input: color-mix(in oklch, var(--color-base-content) 14%, transparent);
-  --ring: color-mix(in oklch, var(--color-primary) 72%, white 8%);
+  --border: color-mix(in oklch, var(--color-base-content) 12%, transparent);
+  --input: color-mix(in oklch, var(--color-base-content) 12%, transparent);
+  --ring: color-mix(in oklch, var(--color-primary) 60%, white 10%);
   --chart-1: var(--color-primary);
   --chart-2: var(--color-info);
   --chart-3: var(--color-success);
   --chart-4: var(--color-warning);
-  --chart-5: oklch(0.68 0.22 320);
-  --radius: 0.75rem;
-  --sidebar: var(--color-neutral);
-  --sidebar-foreground: var(--color-neutral-content);
+  --chart-5: oklch(0.75 0.08 320);
+  --radius: 1rem;
+  --sidebar: oklch(0.16 0.02 270);
+  --sidebar-foreground: var(--color-base-content);
   --sidebar-primary: var(--color-primary);
   --sidebar-primary-foreground: var(--color-primary-content);
-  --sidebar-accent: var(--color-base-300);
+  --sidebar-accent: oklch(0.26 0.04 270);
   --sidebar-accent-foreground: var(--color-base-content);
-  --sidebar-border: color-mix(in oklch, var(--color-base-content) 14%, transparent);
+  --sidebar-border: color-mix(in oklch, var(--color-base-content) 10%, transparent);
   --sidebar-ring: var(--ring);
+  --surface-elevated: oklch(0.24 0.025 270);
+  --canvas-bg: oklch(0.15 0.02 270);
+  --bubble-user: oklch(0.62 0.1 255);
+  --bubble-assistant: oklch(0.26 0.03 270);
   --icon-button-hover-surface:
-    radial-gradient(circle at top left, rgb(255 255 255 / 0.05), transparent 58%),
-    linear-gradient(135deg, rgb(44 44 44 / 0.96), rgb(23 23 23 / 0.98));
-  --icon-button-hover-border: rgb(255 255 255 / 0.09);
+    radial-gradient(circle at top left, rgb(167 199 255 / 0.12), transparent 58%),
+    linear-gradient(135deg, rgb(42 40 58 / 0.98), rgb(28 27 40 / 0.98));
+  --icon-button-hover-border: rgb(167 199 255 / 0.2);
 }
 
 @theme inline {
@@ -143,7 +148,7 @@
   }
 }
 
-@keyframes graphchat-loading-bar {
+@keyframes tenexity-loading-bar {
   0% {
     transform: translateX(-100%);
   }
@@ -171,7 +176,7 @@
 }
 
 .react-flow__edge-path {
-  stroke: oklch(0.65 0.25 265);
+  stroke: oklch(0.72 0.1 255);
   stroke-width: 2;
 }
 

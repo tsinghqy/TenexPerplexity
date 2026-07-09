@@ -1,48 +1,75 @@
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+'use client'
+
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { ErrorMessage } from '@/components/ui/error-message'
+import { LoadingSpinner } from '@/components/ui/loading-spinner'
+import { useAuth } from '@/context/AuthContext'
 
 export default function HomePage() {
+  const { user, loading, signOut, configError } = useAuth()
+
+  if (loading) {
+    return <LoadingSpinner fullScreen />
+  }
+
+  if (configError) {
+    return (
+      <main className="min-h-screen flex items-center justify-center px-6 py-16">
+        <Card className="w-full max-w-lg">
+          <CardHeader>
+            <CardTitle>Supabase not configured</CardTitle>
+            <CardDescription>
+              Create <code className="text-xs">.env.local</code> from{' '}
+              <code className="text-xs">.env.example</code> and restart the dev server.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ErrorMessage message={configError} />
+          </CardContent>
+        </Card>
+      </main>
+    )
+  }
+
   return (
     <main className="min-h-screen flex flex-col items-center justify-center px-6 py-16">
       <div className="w-full max-w-2xl space-y-8">
         <div className="space-y-3 text-center">
           <p className="text-sm uppercase tracking-[0.2em] text-muted-foreground">
-            Phase 0 scaffold
+            Phase 1 auth
           </p>
           <h1 className="text-4xl font-semibold tracking-tight sm:text-5xl">
             TenexPerplexity
           </h1>
           <p className="text-lg text-muted-foreground">
-            Streaming answer engine with live web search, citations, and
-            forkable research branches. Scaffold is up — auth, chat, search, and
-            graph land in later phases.
+            You&apos;re signed in. Chat, web search, and graph branching land in later phases.
           </p>
         </div>
 
         <Card>
           <CardHeader>
-            <CardTitle>Checkpoint</CardTitle>
+            <CardTitle>Signed in</CardTitle>
             <CardDescription>
-              Verify this page loads with Tailwind + shadcn UI before merging P0.
+              Protected home route — middleware redirects unauthenticated users to sign in.
             </CardDescription>
           </CardHeader>
-          <CardContent className="flex flex-wrap gap-3">
-            <Button type="button">Primary</Button>
-            <Button type="button" variant="secondary">
-              Secondary
-            </Button>
-            <Button type="button" variant="outline">
-              Outline
+          <CardContent className="space-y-4">
+            <p className="text-sm text-muted-foreground break-all">
+              {user?.email ?? 'No email on session'}
+            </p>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={async () => {
+                await signOut()
+                window.location.href = '/auth/signin'
+              }}
+            >
+              Sign out
             </Button>
           </CardContent>
         </Card>
-
-        <ul className="grid gap-2 text-sm text-muted-foreground sm:grid-cols-2">
-          <li>Next.js 15 + React 19</li>
-          <li>Tailwind CSS 4 + DaisyUI theme</li>
-          <li>shadcn/ui primitives</li>
-          <li>Cursor rules + AGENTS.md</li>
-        </ul>
       </div>
     </main>
   )

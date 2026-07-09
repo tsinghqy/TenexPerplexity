@@ -1,5 +1,9 @@
 import type { Metadata, Viewport } from "next"
 import "./globals.css"
+import { AuthProvider } from "@/context/AuthContext"
+
+// Auth + session cookies require a request; skip static prerender without env.
+export const dynamic = "force-dynamic"
 
 const getSiteUrl = (): string => {
   if (process.env.NEXT_PUBLIC_SITE_URL) {
@@ -82,7 +86,7 @@ export default function RootLayout({
   return (
     <html lang="en" data-theme="graphchat-dark">
       <body className="min-h-screen bg-background text-foreground font-sans antialiased">
-        {children}
+        <AuthProvider>{children}</AuthProvider>
       </body>
     </html>
   )

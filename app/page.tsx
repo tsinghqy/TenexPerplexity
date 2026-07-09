@@ -33,6 +33,7 @@ export default function HomePage() {
     selectChat,
     startNewChat,
     branchFromMessage,
+    verifyMessage,
   } = useStreamingChat()
   const [draftMessage, setDraftMessage] = useState('')
   const [workspaceView, setWorkspaceView] = useState<WorkspaceView>('chat')
@@ -196,6 +197,9 @@ export default function HomePage() {
                   onBranchFromMessage={(nodeId) => {
                     void handleBranch(nodeId)
                   }}
+                  onVerifyMessage={(nodeId) => {
+                    void verifyMessage(nodeId)
+                  }}
                 />
               </div>
 
@@ -281,6 +285,9 @@ export default function HomePage() {
                   emptyHint="This branch is empty. Ask a follow-up to continue from the parent answer."
                   onBranchFromMessage={(nodeId) => {
                     void handleBranch(nodeId)
+                  }}
+                  onVerifyMessage={(nodeId) => {
+                    void verifyMessage(nodeId)
                   }}
                 />
 

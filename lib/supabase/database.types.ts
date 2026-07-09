@@ -8,6 +8,14 @@ export type Json =
 
 export type MessageRole = 'user' | 'assistant'
 export type LinkType = 'manual' | 'auto_suggested' | 'accepted'
+export type ClaimVerdict = 'supported' | 'partial' | 'unsupported'
+export type ResearchRunStatus =
+  | 'planning'
+  | 'running'
+  | 'scoring'
+  | 'complete'
+  | 'failed'
+  | 'cancelled'
 
 export interface Database {
   public: {
@@ -21,6 +29,8 @@ export interface Database {
           is_expanded: boolean | null
           position_x: number | null
           position_y: number | null
+          research_run_id: string | null
+          confidence: number | null
           created_at: string
           updated_at: string
         }
@@ -32,6 +42,8 @@ export interface Database {
           is_expanded?: boolean | null
           position_x?: number | null
           position_y?: number | null
+          research_run_id?: string | null
+          confidence?: number | null
           created_at?: string
           updated_at?: string
         }
@@ -43,8 +55,91 @@ export interface Database {
           is_expanded?: boolean | null
           position_x?: number | null
           position_y?: number | null
+          research_run_id?: string | null
+          confidence?: number | null
           created_at?: string
           updated_at?: string
+        }
+        Relationships: []
+      }
+      research_runs: {
+        Row: {
+          id: string
+          user_id: string
+          root_chat_id: string | null
+          question: string
+          status: ResearchRunStatus
+          winning_chat_id: string | null
+          overall_confidence: number | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          root_chat_id?: string | null
+          question: string
+          status?: ResearchRunStatus
+          winning_chat_id?: string | null
+          overall_confidence?: number | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          root_chat_id?: string | null
+          question?: string
+          status?: ResearchRunStatus
+          winning_chat_id?: string | null
+          overall_confidence?: number | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      node_claims: {
+        Row: {
+          id: string
+          node_id: string
+          user_id: string
+          claim_text: string
+          start_offset: number
+          end_offset: number
+          verdict: ClaimVerdict
+          confidence: number
+          source_url: string | null
+          source_title: string | null
+          source_quote: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          node_id: string
+          user_id: string
+          claim_text: string
+          start_offset: number
+          end_offset: number
+          verdict: ClaimVerdict
+          confidence?: number
+          source_url?: string | null
+          source_title?: string | null
+          source_quote?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          node_id?: string
+          user_id?: string
+          claim_text?: string
+          start_offset?: number
+          end_offset?: number
+          verdict?: ClaimVerdict
+          confidence?: number
+          source_url?: string | null
+          source_title?: string | null
+          source_quote?: string | null
+          created_at?: string
         }
         Relationships: []
       }
@@ -206,6 +301,8 @@ export interface Database {
     Enums: {
       message_role: MessageRole
       link_type: LinkType
+      claim_verdict: ClaimVerdict
+      research_run_status: ResearchRunStatus
     }
     CompositeTypes: Record<string, never>
   }

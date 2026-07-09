@@ -21,6 +21,8 @@ export interface PersistedChat {
   root_node_id: string | null
   position_x?: number | null
   position_y?: number | null
+  research_run_id?: string | null
+  confidence?: number | null
   created_at: string
   updated_at: string
 }
@@ -231,7 +233,9 @@ export async function listChatsForUser(
 ): Promise<PersistedChat[]> {
   const { data, error } = await supabase
     .from('chats')
-    .select('id, user_id, title, root_node_id, position_x, position_y, created_at, updated_at')
+    .select(
+      'id, user_id, title, root_node_id, position_x, position_y, research_run_id, confidence, created_at, updated_at'
+    )
     .eq('user_id', userId)
     .order('updated_at', { ascending: false })
 

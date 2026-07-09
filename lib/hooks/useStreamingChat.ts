@@ -10,8 +10,10 @@ import {
   type GraphEdgeSummary,
 } from '@/lib/api/chat'
 import { sendMessageStreaming } from '@/lib/api/chat-stream'
+import { verifyNode, type NodeClaim } from '@/lib/api/verify'
 import { CLIENT_DEFAULT_MODEL_ID } from '@/lib/llm/client-defaults'
 import { extractCitationsFromMarkdown, type Citation } from '@/lib/llm/citations'
+import { computeGroundedScore } from '@/lib/verify/score'
 import type { ChatMessage } from '@/lib/llm/types'
 
 export interface ChatThreadMessage {
@@ -19,7 +21,17 @@ export interface ChatThreadMessage {
   role: 'user' | 'assistant'
   content: string
   citations?: Citation[]
+  claims?: NodeClaim[]
+  /** 0–100 grounded score from claim verification. */
+  confidence?: number | null
   isStreaming?: boolean
+  isVerifying?: boolean
+}
+
+function confidenceFromClaims(claims: NodeClaim[]): number | null {
+  return computeGroundedScore(
+    claims.map((claim) => ({ text: claim.claim_text, verdict: claim.verdict }))
+  )
 }
 
 function createMessageId(prefix: string): string {
@@ -115,16 +127,28 @@ export function useStreamingChat(initialModelId?: string) {
         return
       }
 
+      const claimsByNode = new Map<string, NodeClaim[]>()
+      for (const claim of result.claims ?? []) {
+        const list = claimsByNode.get(claim.node_id) || []
+        list.push(claim)
+        claimsByNode.set(claim.node_id, list)
+      }
+
       setMessages(
-        result.chat.nodes.map((node) => ({
-          id: node.id,
-          role: node.role,
-          content: node.content,
-          citations:
-            node.role === 'assistant'
-              ? extractCitationsFromMarkdown(node.content)
-              : undefined,
-        }))
+        result.chat.nodes.map((node) => {
+          const claims = claimsByNode.get(node.id)
+          return {
+            id: node.id,
+            role: node.role,
+            content: node.content,
+            citations:
+              node.role === 'assistant'
+                ? extractCitationsFromMarkdown(node.content)
+                : undefined,
+            claims,
+            confidence: claims ? confidenceFromClaims(claims) : undefined,
+          }
+        })
       )
     },
     [isStreaming]
@@ -161,6 +185,39 @@ export function useStreamingChat(initialModelId?: string) {
     },
     [isStreaming, refreshChats]
   )
+
+  const verifyMessage = useCallback(async (nodeId: string) => {
+    setErrorMessage(null)
+    setMessages((current) =>
+      current.map((message) =>
+        message.id === nodeId ? { ...message, isVerifying: true } : message
+      )
+    )
+
+    const result = await verifyNode(nodeId)
+
+    setMessages((current) =>
+      current.map((message) => {
+        if (message.id !== nodeId) {
+          return message
+        }
+        if (!result.success) {
+          return { ...message, isVerifying: false }
+        }
+        return {
+          ...message,
+          isVerifying: false,
+          claims: result.claims ?? [],
+          confidence: result.confidence ?? null,
+        }
+      })
+    )
+
+    if (!result.success) {
+      setErrorMessage(result.error || 'Verification failed')
+    }
+    return result
+  }, [])
 
   const sendMessage = useCallback(
     async (rawMessage: string) => {
@@ -309,6 +366,7 @@ export function useStreamingChat(initialModelId?: string) {
     selectChat,
     startNewChat,
     branchFromMessage,
+    verifyMessage,
     refreshChats,
   }
 }

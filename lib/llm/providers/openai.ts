@@ -107,9 +107,16 @@ export class OpenAIProvider implements LLMProvider {
     maxTokens: number
     tools: ReturnType<typeof buildOpenAIWebSearchTools>
     forceTool: boolean
-  }) {
-    // Cast: SDK typings may lag the live Responses API (`web_search` + sources include).
-    return this.getClientForWebSearch().responses.create({
+  }): Promise<{ output: unknown }> {
+    // SDK typings lag the live Responses API (`web_search` + sources include).
+    // Use a loose client call so Vercel typecheck does not fail on include/tools unions.
+    const client = this.getClientForWebSearch() as unknown as {
+      responses: {
+        create: (body: Record<string, unknown>) => Promise<{ output?: unknown }>
+      }
+    }
+
+    const response = await client.responses.create({
       model: params.modelId,
       input: params.inputText,
       tools: params.tools,
@@ -118,7 +125,10 @@ export class OpenAIProvider implements LLMProvider {
       text: { format: { type: 'text' } },
       max_output_tokens: params.maxTokens,
       store: false,
-    } as Parameters<OpenAI['responses']['create']>[0])
+      stream: false,
+    })
+
+    return { output: response.output ?? [] }
   }
 
   private citationsFromResponse(output: unknown, content: string) {
